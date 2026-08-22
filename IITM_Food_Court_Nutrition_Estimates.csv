@@ -1,0 +1,137 @@
+id,Category,Item,Serving_Size,Price_Rs,Nutrition_Info,Calories_kcal_Approx,Protein_g_Approx,Carbs_g_Approx,Fat_g_Approx,Fiber_g_Approx
+0001,Breakfast,Idly (3 nos),150,20,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",230,7,48,1,2
+0002,Breakfast,Ragi Idly (3 nos),150,24,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",210,6,42,2,4
+0003,Breakfast,Uthappam,80,26,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",170,4,28,5,2
+0004,Breakfast,Plain Dosa,80,23,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",170,4,27,5,1
+0005,Breakfast,Onion Dosa/Uthappam,90,30,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",190,5,29,6,2
+0006,Breakfast,Masala Dosa,130,35,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",280,6,42,9,4
+0007,Breakfast,Millet Dosa,90,23,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",180,5,30,4,3
+0008,Breakfast,Pesarattu,90,39,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",190,9,27,5,5
+0009,Breakfast,Medhu/Masala Vada,40,10,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",140,4,16,7,2
+0010,Breakfast,Sambar Vada,40,20,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",160,5,22,6,3
+0011,Breakfast,Mysore Bonda/Punugulu,60,15,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",190,4,24,9,2
+0012,Breakfast,Pongal/Upma/Kitchadi,200,25,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",260,7,40,8,3
+0013,Breakfast,Appam (2) with Veg Curry/Coconut Milk,150,35,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",300,6,48,9,3
+0014,Breakfast,Idiyappam (3) with Veg Curry,120,39,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",250,5,45,5,3
+0015,Breakfast,Puttu (2 pieces) with Kadala Curry,150,39,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",300,10,48,7,7
+0016,Breakfast,Poori Masala (2),60,30,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",330,7,42,15,5
+0017,Breakfast,Aloo Paratha with Curd,250,35,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",390,11,52,15,5
+0018,Breakfast,Paneer Paratha with Curd,250,46,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",450,18,50,19,5
+0019,Breakfast,Misal Pav,200,31,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",430,15,55,17,8
+0020,Breakfast,Boiled Egg,1,10,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",78,6,1,5,0
+0021,Breakfast,Scrambled Egg/Omelet,1,14,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",100,7,1,7,0
+0022,Breakfast,Bread Omelet,1,28,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",230,10,25,10,2
+0023,Breakfast,Pav Bhaji (2 pav),200,35,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",390,9,57,14,7
+0024,Breakfast,Cornflakes + Milk,235,33,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",210,7,38,4,1
+0025,Breakfast,Banana,150,8,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",135,2,35,0,4
+0026,Breakfast,Sprouts + Vegetables,100,20,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",100,7,15,2,5
+0027,Indian Breads,Roti/Naan/Kulcha,30,10,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",85,3,17,1,2
+0028,Indian Breads,Butter Naan,40,15,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",140,4,22,4,1
+0029,Indian Breads,Phulka (3),90,18,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",210,7,42,2,5
+0030,Indian Breads,Chola Bhature,60,24,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",250,7,35,10,5
+0031,Indian Breads,Chapati (2),60,15,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",150,5,30,2,4
+0032,Snacks,Samosa (2),150,22,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",500,8,54,29,6
+0033,Snacks,Bajji,100,14,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",280,5,30,15,3
+0034,Snacks,Vada,40,12,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",140,4,15,7,2
+0035,Snacks,Pakoda,150,24,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",430,8,45,25,6
+0036,Snacks,Kachori,75,17,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",250,5,29,13,4
+0037,Snacks,Vada Pav,100,21,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",290,7,39,12,4
+0038,Snacks,Dahi,100,21,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",70,4,6,3,0
+0039,Snacks,White Dhokla,100,41,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",160,6,25,4,2
+0040,Snacks,Chola Tikki (2),125,26,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",250,7,34,9,7
+0041,Lunch,Egg Biryani,300,69,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",600,19,83,20,3
+0042,Lunch,Chicken Biryani,400,96,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",680,31,82,23,3
+0043,Lunch,Awadhi Chicken Biryani,400,99,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",700,31,82,25,3
+0044,Lunch,Hyderabadi Chicken Biryani,400,99,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",720,32,82,27,3
+0045,Lunch,Mutton Biryani,400,151,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",760,29,80,34,3
+0046,Lunch,Fish Biryani,400,151,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",690,28,82,24,3
+0047,Lunch,Prawns Biryani,400,163,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",700,30,82,23,3
+0048,Lunch,Vegetable Biryani/Pulao,300,61,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",430,8,70,12,4
+0049,Lunch,Ghee Rice,300,54,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",520,7,75,20,2
+0050,Lunch,Bisibella Bath,250,41,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",330,9,49,10,6
+0051,Lunch,Variety Rice,250,36,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",360,8,58,10,4
+0052,Lunch,Curd Rice,250,29,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",300,7,48,8,1
+0053,Lunch,Plain Rice,250,23,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",325,6,72,1,1
+0054,Lunch,Jeera Rice,250,37,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",360,7,70,6,2
+0055,Lunch,Kerala Rice,250,29,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",325,6,72,1,2
+0056,Lunch,South Indian Thali,,64,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",650,18,95,20,10
+0057,Lunch,North Indian Thali,,75,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",750,23,100,27,12
+0058,Chinese,Veg Fried Rice,250,52,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",420,9,67,12,3
+0059,Chinese,Paneer Fried Rice,250,62,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",500,15,65,18,3
+0060,Chinese,Egg Fried Rice,250,67,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",490,16,67,16,3
+0061,Chinese,Chicken Fried Rice,250,84,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",540,22,67,18,3
+0062,Chinese,Veg Noodles,250,54,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",430,9,67,13,4
+0063,Chinese,Egg Noodles,250,69,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",500,15,67,16,4
+0064,Chinese,Chicken Noodles,250,73,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",540,22,66,18,4
+0065,Chinese,Chicken Soup,150,25,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",100,9,6,4,1
+0066,Chinese,Tomato Clear Soup,150,23,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",45,1,8,1,1
+0067,Curries & Dry,Veg Butter Masala,200,37,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",300,7,18,22,5
+0068,Curries & Dry,Paneer Butter Masala,200,62,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",430,15,16,34,4
+0069,Curries & Dry,Aloo Gobi Masala,200,33,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",230,5,27,12,6
+0070,Curries & Dry,Channa Butter Masala,200,40,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",320,12,35,14,8
+0071,Curries & Dry,Kadai Veg,200,42,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",220,6,24,11,6
+0072,Curries & Dry,Plain Palak,200,37,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",120,5,12,6,5
+0073,Curries & Dry,Cauliflower Manchurian,200,45,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",300,7,30,17,5
+0074,Curries & Dry,Paneer Manchurian,200,63,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",400,17,24,25,4
+0075,Curries & Dry,Veg Manchurian,200,47,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",320,8,34,17,5
+0076,Curries & Dry,Veg Kuruma,200,33,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",250,6,18,17,5
+0077,Curries & Dry,Dal Tadka,200,29,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",230,11,27,8,8
+0078,Curries & Dry,Dal Makhni,200,33,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",280,10,30,13,8
+0079,Curries & Dry,Dal Fry,150,31,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",190,9,23,7,6
+0080,Curries & Dry,Tomato Dal,200,33,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",210,10,25,7,6
+0081,Curries & Dry,Palak Pappu,200,30,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",210,10,24,7,7
+0082,Curries & Dry,Gongura Pappu,200,30,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",210,10,24,7,6
+0083,Curries & Dry,Mix Veg Sambar,200,30,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",160,7,24,4,6
+0084,Curries & Dry,Alu Jeera,200,35,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",250,5,30,12,5
+0085,Curries & Dry,Alu Peas Masala,200,34,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",240,6,31,10,6
+0086,Curries & Dry,Alu Tomato,200,33,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",210,5,30,8,5
+0087,Curries & Dry,Baigan Bharta,200,32,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",180,4,18,10,7
+0088,Curries & Dry,Shahi Paneer,200,64,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",440,16,18,34,3
+0089,Curries & Dry,Palak Paneer,200,63,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",360,17,17,25,5
+0090,Curries & Dry,Baby Corn Masala,200,47,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",230,6,28,10,6
+0091,Curries & Dry,Mushroom Masala,200,55,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",240,8,17,16,4
+0092,Curries & Dry,Chilli Paneer,200,63,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",420,18,28,27,4
+0093,Curries & Dry,Meal Maker Masala,200,30,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",250,18,22,10,8
+0094,Curries & Dry,Sev Tamatar,200,35,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",300,7,25,19,4
+0095,Curries & Dry,Malai Kofta,200,20,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",380,9,28,26,4
+0096,Curries & Dry,Single Egg Masala,1,14,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",110,7,4,7,1
+0097,Curries & Dry,Egg Curry (2 eggs),200,30,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",250,14,10,16,2
+0098,Curries & Dry,Butter Chicken,150,78,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",310,25,8,20,1
+0099,Curries & Dry,Chilli Chicken,150,76,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",300,25,18,15,1
+0100,Curries & Dry,Kadai Chicken,150,87,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",280,27,9,16,2
+0101,Curries & Dry,Chicken Chettinad,150,85,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",300,27,8,19,2
+0102,Curries & Dry,Ginger Chicken,150,76,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",290,27,13,16,1
+0103,Curries & Dry,Pepper Chicken,150,77,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",290,27,7,18,1
+0104,Curries & Dry,Garlic Chicken,150,78,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",300,27,11,17,1
+0105,Curries & Dry,Chicken Manchurian,150,79,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",310,25,17,17,1
+0106,Curries & Dry,Fish Curry,150,92,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",260,22,8,16,1
+0107,Curries & Dry,Mutton Curry,150,114,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",350,22,8,26,1
+0108,Curries & Dry,Mutton Keema,150,120,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",390,24,8,29,1
+0109,Dry Items,Bhindi Fry,150,33,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",260,5,25,16,7
+0110,Dry Items,Gobi 65,150,33,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",330,7,30,20,5
+0111,Dry Items,Chicken 65,150,86,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",380,27,13,24,1
+0112,Dry Items,Chilli Chicken,150,86,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",300,25,18,15,1
+0113,Dry Items,Fish Fry,80,81,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",220,17,8,14,1
+0114,Dry Items,Mutton Dry,120,125,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",360,28,5,27,1
+0115,Sweets,Gulab Jamun (2),100,26,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",330,4,58,10,1
+0116,Sweets,Rasgulla (2),100,26,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",190,4,38,2,0
+0117,Sweets,Basundi,75,32,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",180,5,22,8,0
+0118,Sweets,Rasmalai,75,26,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",160,5,20,7,0
+0119,Sweets,Gajar Halwa,100,26,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",220,4,30,10,3
+0120,Sweets,Carrot Halwa,100,26,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",220,4,30,10,3
+0121,Sweets,Pineapple Halwa,100,25,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",210,2,36,7,2
+0122,Chat,Papdi Chat,100,23,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",220,6,31,8,5
+0123,Chat,Pani Poori,100,19,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",150,4,27,4,3
+0124,Chat,Dahi Poori,100,23,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",190,5,29,6,3
+0125,Chat,Bhel Poori,100,2,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",170,4,31,3,4
+0126,Chat,Samosa Masala Chat,100,26,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",260,7,36,10,5
+0127,Chat,Bhel,100,13,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",150,4,28,3,4
+0128,Fresh Juices,Pineapple,225,26,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",110,1,28,0,2
+0129,Fresh Juices,Grape,225,32,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",155,1,40,0,1
+0130,Fresh Juices,Chicku,225,41,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",190,1,48,1,5
+0131,Fresh Juices,Mosambi,225,35,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",105,2,25,0,1
+0132,Fresh Juices,Papaya,225,24,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",95,1,24,0,2
+0133,Fresh Juices,Watermelon,225,21,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",70,1,17,0,1
+0134,Fresh Juices,Lime Juice,225,14,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",60,0,15,0,0
+0135,Fresh Juices,Lassi,225,30,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",170,6,22,7,0
+0136,Beverages,Tea,20,10,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",25,1,4,1,0
