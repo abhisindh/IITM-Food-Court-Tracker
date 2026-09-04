@@ -607,7 +607,7 @@ function getRecommendations(mealType) {
 
 function renderDashboard() {
     const fin = calculateFinance();
-    
+    console.log(fin)
     // Bind main financial values
     document.getElementById('db-start-balance').textContent = `₹${state.settings.startingBalance.toFixed(2)}`;
     document.getElementById('db-total-spent').textContent = `₹${fin.totalSpent.toFixed(2)}`;
@@ -652,11 +652,11 @@ function renderCurrentMeal() {
     const spent = fin.spentTodayByMeal[meal] || 0;
     const remaining = budget - spent;
     
-    document.getElementById('meal-budget-val').textContent = `₹${budget.toFixed(2)}`;
-    document.getElementById('meal-spent-val').textContent = `₹${spent.toFixed(2)}`;
+    document.getElementById('meal-budget-val').textContent = `₹${fin.todayBudget.toFixed()}`;
+    document.getElementById('meal-spent-val').textContent = `₹${fin.spentTodayTotal}`;
     
     const remainingValEl = document.getElementById('meal-remaining-val');
-    remainingValEl.textContent = `₹${remaining.toFixed(2)}`;
+    remainingValEl.textContent = `₹${fin.todayBudget.toFixed()- fin.spentTodayTotal}`;
     
     const mealBudgetCard = document.getElementById('current-meal-card');
     if (remaining < 0) {

@@ -86,21 +86,7 @@
                     
                     <!-- Current Meal Tracker -->
                     <div class="glass-panel meal-status-card" id="current-meal-card">
-                        <div class="meal-status-header">
-                            <div>
-                                <h3 style="display:inline-flex; align-items:center; gap:8px;">
-                                    🍽️ Current Meal: <span id="lbl-current-meal-title">Lunch</span>
-                                </h3>
-                                <div class="meal-time-hint" id="meal-time-window">(12:00 - 14:30)</div>
-                            </div>
-                            
-                            <div class="meal-pills" id="meal-select-pills">
-                                <button class="meal-pill" data-meal="breakfast">Breakfast</button>
-                                <button class="meal-pill" data-meal="lunch">Lunch</button>
-                                <button class="meal-pill" data-meal="snack">Snack</button>
-                                <button class="meal-pill" data-meal="dinner">Dinner</button>
-                            </div>
-                        </div>
+                        <h3>Today's overview</h3>
                         
                         <div class="meal-budget-numbers">
                             <div class="meal-budget-row">
@@ -120,7 +106,22 @@
                     
                     <!-- Meal Budgets Grid across all meals -->
                     <div class="glass-panel" style="display:flex; flex-direction:column; justify-content:center; gap:12px;">
-                        <h4 style="font-size:13px; text-transform:uppercase; color:var(--text-secondary); letter-spacing:0.5px; margin-bottom:4px;">Today's Meal Allocation Summary</h4>
+                        <div class="meal-status-header">
+                            <div>
+                                <h3 style="display:inline-flex; align-items:center; gap:8px;">
+                                    🍽️ Current Meal: <span id="lbl-current-meal-title">Lunch</span>
+                                </h3>
+                                <div class="meal-time-hint" id="meal-time-window">(12:00 - 14:30)</div>
+                            </div>
+                            
+                            <div class="meal-pills" id="meal-select-pills">
+                                <button class="meal-pill" data-meal="breakfast">Breakfast</button>
+                                <button class="meal-pill" data-meal="lunch">Lunch</button>
+                                <button class="meal-pill" data-meal="snack">Snack</button>
+                                <button class="meal-pill" data-meal="dinner">Dinner</button>
+                            </div>
+                        </div>
+                        <!-- <h4 style="font-size:13px; text-transform:uppercase; color:var(--text-secondary); letter-spacing:0.5px; margin-bottom:4px;">Today's Meal Allocation Summary</h4> -->
                         <div class="meal-budgets-grid">
                             <div class="meal-grid-card">
                                 <span class="title">Breakfast</span>
