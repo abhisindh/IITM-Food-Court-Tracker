@@ -135,3 +135,4 @@ id,Category,Item,Serving_Size,Price_Rs,Nutrition_Info,Calories_kcal_Approx,Prote
 0134,Fresh Juices,Lime Juice,225,14,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",60,0,15,0,0
 0135,Fresh Juices,Lassi,225,30,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",170,6,22,7,0
 0136,Beverages,Tea,20,10,"Approximate estimate; actual values vary with recipe, oil, sugar, and portioning.",25,1,4,1,0
+0137,Beverages,Curd,100,9,"Approximate estimate; actual values vary with recipe, fat content, and portioning.",60,3,4,3,0
