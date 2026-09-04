@@ -652,11 +652,11 @@ function renderCurrentMeal() {
     const spent = fin.spentTodayByMeal[meal] || 0;
     const remaining = budget - spent;
     
-    document.getElementById('meal-budget-val').textContent = `₹${fin.todayBudget.toFixed()}`;
+    document.getElementById('meal-budget-val').textContent = `₹${fin.todayBudget.toFixed(2)}`;
     document.getElementById('meal-spent-val').textContent = `₹${fin.spentTodayTotal}`;
     
     const remainingValEl = document.getElementById('meal-remaining-val');
-    remainingValEl.textContent = `₹${fin.todayBudget.toFixed()- fin.spentTodayTotal}`;
+    remainingValEl.textContent = `₹${fin.todayBudget.toFixed(2)- fin.spentTodayTotal}`;
     
     const mealBudgetCard = document.getElementById('current-meal-card');
     if (remaining < 0) {
