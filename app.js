@@ -656,7 +656,7 @@ function renderCurrentMeal() {
     document.getElementById('meal-spent-val').textContent = `₹${fin.spentTodayTotal}`;
     
     const remainingValEl = document.getElementById('meal-remaining-val');
-    remainingValEl.textContent = `₹${fin.todayBudget.toFixed(2)- fin.spentTodayTotal}`;
+    remainingValEl.textContent = `₹${(fin.todayBudget - fin.spentTodayTotal).toFixed(2)}`;
     
     const mealBudgetCard = document.getElementById('current-meal-card');
     if (remaining < 0) {
