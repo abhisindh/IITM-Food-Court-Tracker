@@ -3,6 +3,8 @@
  * Core application logic: handles CSV loading, state calculations, recommendation calculations, and UI updates.
  */
 
+
+
 // Global Application State
 const state = {
     foodDb: [],        // Raw array of food items loaded from CSV
@@ -237,10 +239,10 @@ function loadUserData() {
         
         const data = JSON.parse(stored);
         
-        // Validate Schema version & key structure
+        // Validate Schema version & key structure (support both V1 and V2)
         if (
             !data ||
-            data.version !== state.version ||
+            (data.version !== 1 && data.version !== 2) ||
             !data.settings ||
             !data.ratings ||
             !data.eaten ||
@@ -863,6 +865,7 @@ function renderHistory() {
     // Group records by Date local timezone
     const groups = {}; // dateStr -> records array
     
+    
     state.eaten.forEach(([foodId, timestamp], index) => {
         const food = state.foodMap[foodId];
         const datePart = timestamp.substring(0, 8); // YYYYMMDD
@@ -885,7 +888,6 @@ function renderHistory() {
                 records: []
             };
         }
-        
         groups[datePart].records.push({
             index, // Keep global index in state.eaten for removal
             foodId,
@@ -916,6 +918,7 @@ function renderHistory() {
                 </div>
                 <div class="history-item-right">
                     <span class="history-price">₹${rec.price.toFixed(2)}</span>
+                    <button class="btn btn-outline btn-xs edit-history-btn" data-index="${rec.index}" title="Edit date and time">✏️ Edit</button>
                     <button class="delete-history-btn" data-index="${rec.index}" title="Remove entry">×</button>
                 </div>
             </div>
@@ -1259,7 +1262,523 @@ function closeDetailsModal() {
 }
 
 /**
- * 12. RUN-TIME INITIALIZERS & BINDINGS
+ * 12. EDIT EATING HISTORY CONTROLLER
+ */
+let editingHistoryIndex = -1;
+
+function openEditHistoryModal(index) {
+    if (index < 0 || index >= state.eaten.length) return;
+    editingHistoryIndex = index;
+    
+    const [foodId, timestamp] = state.eaten[index];
+    const food = state.foodMap[foodId];
+    
+    document.getElementById('edit-modal-item-name').textContent = food ? food.item : `Unknown Item (${foodId})`;
+    document.getElementById('edit-modal-item-category').textContent = food ? food.category : 'N/A';
+    document.getElementById('edit-modal-item-price').textContent = `₹${food ? food.price.toFixed(2) : '0.00'}`;
+    
+    const yyyy = timestamp.substring(0, 4);
+    const mm = timestamp.substring(4, 6);
+    const dd = timestamp.substring(6, 8);
+    const hh = timestamp.substring(8, 10);
+    const min = timestamp.substring(10, 12);
+    
+    document.getElementById('edit-record-date').value = `${yyyy}-${mm}-${dd}`;
+    document.getElementById('edit-record-time').value = `${hh}:${min}`;
+    
+    document.getElementById('edit-history-modal').classList.add('open');
+}
+
+function closeEditHistoryModal() {
+    document.getElementById('edit-history-modal').classList.remove('open');
+    editingHistoryIndex = -1;
+}
+
+function saveEditHistory(e) {
+    e.preventDefault();
+    if (editingHistoryIndex < 0 || editingHistoryIndex >= state.eaten.length) return;
+    
+    const dateVal = document.getElementById('edit-record-date').value;
+    const timeVal = document.getElementById('edit-record-time').value;
+    
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateVal)) {
+        showToast("Invalid date format.", "error");
+        return;
+    }
+    if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(timeVal)) {
+        showToast("Invalid time format.", "error");
+        return;
+    }
+    
+    const [y, m, d] = dateVal.split('-').map(Number);
+    const testDate = new Date(y, m - 1, d);
+    if (isNaN(testDate.getTime()) || testDate.getMonth() !== m - 1 || testDate.getDate() !== d) {
+        showToast("Invalid calendar date.", "error");
+        return;
+    }
+    
+    const [hh, mm] = timeVal.split(':');
+    const newTimestamp = `${String(y).padStart(4, '0')}${String(m).padStart(2, '0')}${String(d).padStart(2, '0')}${hh}${mm}`;
+    
+    // In-place replacement: keep original foodID, replace only timestamp
+    const [foodId] = state.eaten[editingHistoryIndex];
+    state.eaten[editingHistoryIndex] = [foodId, newTimestamp];
+    
+    saveUserData();
+    triggerFullUIRender();
+    closeEditHistoryModal();
+    showToast("Eating record updated successfully!", "success");
+}
+
+/**
+ * 13. ANALYTICS & CHART.JS VISUALIZATIONS
+ */
+const chartInstances = {
+    balanceTrend: null,
+    dailySpending: null,
+    mealSpending: null,
+    categorySpending: null
+};
+
+function renderAnalytics() {
+    if (typeof Chart === 'undefined') {
+        console.warn("Chart.js is not loaded.");
+        return;
+    }
+
+    const start = parseLocalDate(state.settings.startDate);
+    const end = parseLocalDate(state.settings.endDate);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+
+    const totalDays = Math.max(1, Math.round((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+    
+    let daysElapsed = 0;
+    if (today < start) {
+        daysElapsed = 0;
+    } else if (today > end) {
+        daysElapsed = totalDays;
+    } else {
+        daysElapsed = Math.round((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+    }
+
+    const startingBalance = state.settings.startingBalance;
+    const dailyExpectedBurn = totalDays > 0 ? (startingBalance / totalDays) : 0;
+    const expectedSpendToDate = daysElapsed * dailyExpectedBurn;
+    const expectedBalanceToDate = Math.max(0, startingBalance - expectedSpendToDate);
+
+    let totalSpent = 0;
+    const dailySpendMap = {};
+    const mealSpendMap = { breakfast: 0, lunch: 0, snack: 0, dinner: 0 };
+    const categorySpendMap = {};
+    const foodCountMap = {};
+
+    state.eaten.forEach(([foodId, timestamp]) => {
+        const food = state.foodMap[foodId];
+        const price = food ? food.price : 0;
+        totalSpent += price;
+
+        const dateStr = timestamp.substring(0, 8);
+        dailySpendMap[dateStr] = (dailySpendMap[dateStr] || 0) + price;
+
+        const hr = timestamp.substring(8, 10);
+        const min = timestamp.substring(10, 12);
+        const mealType = getMealTypeForTime(`${hr}:${min}`, state.settings.mealTimes);
+        mealSpendMap[mealType] = (mealSpendMap[mealType] || 0) + price;
+
+        const cat = food ? food.category : 'Other';
+        categorySpendMap[cat] = (categorySpendMap[cat] || 0) + price;
+
+        foodCountMap[foodId] = (foodCountMap[foodId] || 0) + 1;
+    });
+
+    const actualBalance = startingBalance - totalSpent;
+
+    // Populate KPIs
+    const anTotalSpentEl = document.getElementById('an-total-spent');
+    if (anTotalSpentEl) anTotalSpentEl.textContent = `₹${totalSpent.toFixed(2)}`;
+    const spentPct = startingBalance > 0 ? Math.round((totalSpent / startingBalance) * 100) : 0;
+    const anSpentPctEl = document.getElementById('an-spent-pct');
+    if (anSpentPctEl) anSpentPctEl.textContent = `${spentPct}% of ₹${startingBalance.toFixed(0)} Budget`;
+
+    const anExpectedSpentEl = document.getElementById('an-expected-spent');
+    if (anExpectedSpentEl) anExpectedSpentEl.textContent = `₹${expectedSpendToDate.toFixed(2)}`;
+    const spendDiff = expectedSpendToDate - totalSpent;
+    const spendDiffEl = document.getElementById('an-spend-diff');
+    if (spendDiffEl) {
+        if (spendDiff >= 0) {
+            spendDiffEl.textContent = `₹${spendDiff.toFixed(2)} under expected (Surplus)`;
+            spendDiffEl.className = 'metric-subtext text-positive';
+        } else {
+            spendDiffEl.textContent = `₹${Math.abs(spendDiff).toFixed(2)} over expected (Deficit)`;
+            spendDiffEl.className = 'metric-subtext text-negative';
+        }
+    }
+
+    const anExpectedBalEl = document.getElementById('an-expected-balance');
+    if (anExpectedBalEl) anExpectedBalEl.textContent = `₹${expectedBalanceToDate.toFixed(2)}`;
+    const balanceStatusEl = document.getElementById('an-balance-status');
+    if (balanceStatusEl) {
+        if (actualBalance >= expectedBalanceToDate) {
+            balanceStatusEl.textContent = `Actual: ₹${actualBalance.toFixed(2)} (Ahead)`;
+            balanceStatusEl.className = 'metric-subtext text-positive';
+        } else {
+            balanceStatusEl.textContent = `Actual: ₹${actualBalance.toFixed(2)} (Behind)`;
+            balanceStatusEl.className = 'metric-subtext text-negative';
+        }
+    }
+
+    const effectiveDays = Math.max(1, daysElapsed);
+    const avgDailySpend = daysElapsed > 0 ? (totalSpent / effectiveDays) : 0;
+    const anAvgDailyEl = document.getElementById('an-avg-daily');
+    if (anAvgDailyEl) anAvgDailyEl.textContent = `₹${avgDailySpend.toFixed(2)}/day`;
+    const anTargetDailyEl = document.getElementById('an-target-daily');
+    if (anTargetDailyEl) anTargetDailyEl.textContent = `Target: ₹${dailyExpectedBurn.toFixed(2)}/day`;
+
+    let peakDayStr = '-';
+    let peakAmount = 0;
+    Object.keys(dailySpendMap).forEach(d => {
+        if (dailySpendMap[d] > peakAmount) {
+            peakAmount = dailySpendMap[d];
+            peakDayStr = d;
+        }
+    });
+    const anPeakAmountEl = document.getElementById('an-peak-day-amount');
+    if (anPeakAmountEl) anPeakAmountEl.textContent = `₹${peakAmount.toFixed(2)}`;
+    const anPeakDateEl = document.getElementById('an-peak-day-date');
+    if (anPeakDateEl) {
+        if (peakDayStr !== '-') {
+            const py = peakDayStr.substring(0, 4);
+            const pm = peakDayStr.substring(4, 6);
+            const pd = peakDayStr.substring(6, 8);
+            anPeakDateEl.textContent = `${py}-${pm}-${pd}`;
+        } else {
+            anPeakDateEl.textContent = 'No data';
+        }
+    }
+
+    const runwayDaysEl = document.getElementById('an-runway-days');
+    const runwayStatusEl = document.getElementById('an-runway-status');
+    
+    const diffTimeRemaining = end.getTime() - today.getTime();
+    const daysRemaining = (today < start) ? totalDays : (today > end ? 0 : Math.round(diffTimeRemaining / (1000 * 60 * 60 * 24)) + 1);
+
+    if (runwayDaysEl && runwayStatusEl) {
+        if (actualBalance <= 0) {
+            runwayDaysEl.textContent = "0 days";
+            runwayStatusEl.textContent = "Budget depleted";
+            runwayStatusEl.className = "metric-subtext text-negative";
+        } else if (avgDailySpend <= 0) {
+            runwayDaysEl.textContent = `${daysRemaining} days`;
+            runwayStatusEl.textContent = "No spending yet";
+            runwayStatusEl.className = "metric-subtext text-positive";
+        } else {
+            const runway = Math.floor(actualBalance / avgDailySpend);
+            runwayDaysEl.textContent = `${runway} days`;
+            if (runway >= daysRemaining) {
+                runwayStatusEl.textContent = `Will cover all ${daysRemaining} remaining days!`;
+                runwayStatusEl.className = "metric-subtext text-positive";
+            } else {
+                const shortfall = daysRemaining - runway;
+                runwayStatusEl.textContent = `Shortfall of ~${shortfall} day(s) at current burn`;
+                runwayStatusEl.className = "metric-subtext text-negative";
+            }
+        }
+    }
+
+    const isDark = state.theme === 'dark';
+    const textColor = isDark ? '#94a3b8' : '#4b5563';
+    const gridColor = isDark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(0, 0, 0, 0.08)';
+
+    if (chartInstances.balanceTrend) { chartInstances.balanceTrend.destroy(); chartInstances.balanceTrend = null; }
+    if (chartInstances.dailySpending) { chartInstances.dailySpending.destroy(); chartInstances.dailySpending = null; }
+    if (chartInstances.mealSpending) { chartInstances.mealSpending.destroy(); chartInstances.mealSpending = null; }
+    if (chartInstances.categorySpending) { chartInstances.categorySpending.destroy(); chartInstances.categorySpending = null; }
+
+    // Chart 1: Balance Over Time (Expected vs Actual)
+    const dateLabels = [];
+    const expectedData = [];
+    const actualData = [];
+
+    const sortedEaten = [...state.eaten].sort((a, b) => a[1].localeCompare(b[1]));
+
+    let cumulativeSpend = 0;
+    const cumulativeSpendByDate = {};
+    sortedEaten.forEach(([fId, ts]) => {
+        const food = state.foodMap[fId];
+        const p = food ? food.price : 0;
+        const dStr = ts.substring(0, 8);
+        cumulativeSpend += p;
+        cumulativeSpendByDate[dStr] = cumulativeSpend;
+    });
+
+    let runningCumSpend = 0;
+    const curDate = new Date(start.getTime());
+    let dayIndex = 0;
+
+    while (curDate <= end) {
+        const yStr = curDate.getFullYear();
+        const mStr = String(curDate.getMonth() + 1).padStart(2, '0');
+        const dStr = String(curDate.getDate()).padStart(2, '0');
+        const key = `${yStr}${mStr}${dStr}`;
+        const label = `${mStr}/${dStr}`;
+        dateLabels.push(label);
+
+        const expBal = Math.max(0, startingBalance - (dayIndex * dailyExpectedBurn));
+        expectedData.push(Math.round(expBal));
+
+        if (curDate <= today || today > end) {
+            if (cumulativeSpendByDate[key] !== undefined) {
+                runningCumSpend = cumulativeSpendByDate[key];
+            }
+            actualData.push(Math.round(startingBalance - runningCumSpend));
+        } else {
+            actualData.push(null);
+        }
+
+        curDate.setDate(curDate.getDate() + 1);
+        dayIndex++;
+    }
+
+    const ctxBalance = document.getElementById('chart-balance-trend');
+    if (ctxBalance) {
+        chartInstances.balanceTrend = new Chart(ctxBalance, {
+            type: 'line',
+            data: {
+                labels: dateLabels,
+                datasets: [
+                    {
+                        label: 'Expected Balance (Target)',
+                        data: expectedData,
+                        borderColor: '#94a3b8',
+                        borderDash: [6, 6],
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        tension: 0.1,
+                        fill: false
+                    },
+                    {
+                        label: 'Actual Balance',
+                        data: actualData,
+                        borderColor: '#6366f1',
+                        backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                        borderWidth: 3,
+                        pointRadius: 2,
+                        pointHoverRadius: 6,
+                        tension: 0.2,
+                        fill: true
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { labels: { color: textColor } }
+                },
+                scales: {
+                    x: { ticks: { color: textColor, maxTicksLimit: 12 }, grid: { color: gridColor } },
+                    y: { ticks: { color: textColor, callback: v => `₹${v}` }, grid: { color: gridColor } }
+                }
+            }
+        });
+    }
+
+    // Chart 2: Daily Spending
+    const dailyKeys = Object.keys(dailySpendMap).sort();
+    const dailyLabels = dailyKeys.map(k => `${k.substring(4, 6)}/${k.substring(6, 8)}`);
+    const dailyValues = dailyKeys.map(k => dailySpendMap[k]);
+
+    const ctxDaily = document.getElementById('chart-daily-spending');
+    if (ctxDaily) {
+        chartInstances.dailySpending = new Chart(ctxDaily, {
+            type: 'bar',
+            data: {
+                labels: dailyLabels.length > 0 ? dailyLabels : ['No Data'],
+                datasets: [
+                    {
+                        label: 'Daily Spending',
+                        data: dailyValues.length > 0 ? dailyValues : [0],
+                        backgroundColor: '#38bdf8',
+                        borderRadius: 6
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { labels: { color: textColor } }
+                },
+                scales: {
+                    x: { ticks: { color: textColor }, grid: { color: gridColor } },
+                    y: { ticks: { color: textColor, callback: v => `₹${v}` }, grid: { color: gridColor } }
+                }
+            }
+        });
+    }
+
+    // Chart 3: Spending by Meal
+    const ctxMeal = document.getElementById('chart-meal-spending');
+    if (ctxMeal) {
+        chartInstances.mealSpending = new Chart(ctxMeal, {
+            type: 'doughnut',
+            data: {
+                labels: ['Breakfast', 'Lunch', 'Snack', 'Dinner'],
+                datasets: [
+                    {
+                        data: [
+                            mealSpendMap.breakfast,
+                            mealSpendMap.lunch,
+                            mealSpendMap.snack,
+                            mealSpendMap.dinner
+                        ],
+                        backgroundColor: ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6'],
+                        borderWidth: 2,
+                        borderColor: isDark ? '#131b2e' : '#ffffff'
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: { position: 'bottom', labels: { color: textColor } }
+                }
+            }
+        });
+    }
+
+    // Chart 4: Spending by Category
+    const catKeys = Object.keys(categorySpendMap).sort((a, b) => categorySpendMap[b] - categorySpendMap[a]);
+    const catLabels = catKeys.slice(0, 8);
+    const catValues = catLabels.map(k => categorySpendMap[k]);
+
+    const ctxCat = document.getElementById('chart-category-spending');
+    if (ctxCat) {
+        chartInstances.categorySpending = new Chart(ctxCat, {
+            type: 'bar',
+            data: {
+                labels: catLabels.length > 0 ? catLabels : ['None'],
+                datasets: [
+                    {
+                        label: 'Spent (₹)',
+                        data: catValues.length > 0 ? catValues : [0],
+                        backgroundColor: '#a855f7',
+                        borderRadius: 6
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                indexAxis: 'y',
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    x: { ticks: { color: textColor, callback: v => `₹${v}` }, grid: { color: gridColor } },
+                    y: { ticks: { color: textColor }, grid: { color: gridColor } }
+                }
+            }
+        });
+    }
+
+    // Tables: Most Frequently Eaten Foods
+    const freqWrapper = document.getElementById('an-freq-table-wrapper');
+    const sortedFreqIds = Object.keys(foodCountMap).sort((a, b) => foodCountMap[b] - foodCountMap[a]).slice(0, 8);
+    
+    if (freqWrapper) {
+        if (sortedFreqIds.length === 0) {
+            freqWrapper.innerHTML = `<div class="empty-state">No eating records yet.</div>`;
+        } else {
+            let rowsHtml = sortedFreqIds.map((fId, idx) => {
+                const food = state.foodMap[fId];
+                const count = foodCountMap[fId];
+                const itemTotal = (food ? food.price : 0) * count;
+                const rankClass = idx === 0 ? 'rank-1' : (idx === 1 ? 'rank-2' : (idx === 2 ? 'rank-3' : ''));
+                return `
+                    <tr>
+                        <td><span class="rank-pill ${rankClass}">${idx + 1}</span></td>
+                        <td style="font-weight:600;">${food ? food.item : fId}</td>
+                        <td><span class="food-category-badge">${food ? food.category : 'N/A'}</span></td>
+                        <td style="text-align:center; font-weight:700;">${count}×</td>
+                        <td style="text-align:right; font-weight:700; color:var(--accent-light);">₹${itemTotal.toFixed(2)}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            freqWrapper.innerHTML = `
+                <table class="analytics-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Food Item</th>
+                            <th>Category</th>
+                            <th style="text-align:center;">Times Eaten</th>
+                            <th style="text-align:right;">Total Spent</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rowsHtml}</tbody>
+                </table>
+            `;
+        }
+    }
+
+    // Tables: Favorite Foods
+    const favsWrapper = document.getElementById('an-favs-table-wrapper');
+    const candidateIds = new Set([...Object.keys(state.ratings), ...Object.keys(foodCountMap)]);
+    const favCandidates = Array.from(candidateIds).map(fId => {
+        const rating = state.ratings[fId] || 0;
+        const count = foodCountMap[fId] || 0;
+        const score = (rating * 20) + (count * 5);
+        return { fId, rating, count, score };
+    });
+
+    favCandidates.sort((a, b) => b.score - a.score);
+    const topFavs = favCandidates.slice(0, 8);
+
+    if (favsWrapper) {
+        if (topFavs.length === 0 || (topFavs[0].rating === 0 && topFavs[0].count === 0)) {
+            favsWrapper.innerHTML = `<div class="empty-state">No ratings or eating records yet.</div>`;
+        } else {
+            let rowsHtml = topFavs.map((fav, idx) => {
+                const food = state.foodMap[fav.fId];
+                const rankClass = idx === 0 ? 'rank-1' : (idx === 1 ? 'rank-2' : (idx === 2 ? 'rank-3' : ''));
+                const stars = fav.rating > 0 ? '★'.repeat(fav.rating) + '☆'.repeat(5 - fav.rating) : 'Unrated';
+                return `
+                    <tr>
+                        <td><span class="rank-pill ${rankClass}">${idx + 1}</span></td>
+                        <td style="font-weight:600;">${food ? food.item : fav.fId}</td>
+                        <td style="color:var(--warning); font-size:12px;">${stars}</td>
+                        <td style="text-align:center;">${fav.count}×</td>
+                        <td><span class="food-category-badge">${food ? food.category : 'N/A'}</span></td>
+                        <td style="text-align:right; font-weight:700;">₹${food ? food.price.toFixed(2) : '0.00'}</td>
+                    </tr>
+                `;
+            }).join('');
+
+            favsWrapper.innerHTML = `
+                <table class="analytics-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Food Item</th>
+                            <th>Rating</th>
+                            <th style="text-align:center;">Eaten</th>
+                            <th>Category</th>
+                            <th style="text-align:right;">Price</th>
+                        </tr>
+                    </thead>
+                    <tbody>${rowsHtml}</tbody>
+                </table>
+            `;
+        }
+    }
+}
+
+/**
+ * 14. RUN-TIME INITIALIZERS & BINDINGS
  */
 
 function triggerFullUIRender() {
@@ -1276,6 +1795,10 @@ function triggerFullUIRender() {
     renderFoodCatalog();
     renderHistory();
     renderSettingsForm();
+
+    if (state.activeTab === 'analytics') {
+        renderAnalytics();
+    }
 }
 
 function switchTab(tabId) {
@@ -1290,6 +1813,10 @@ function switchTab(tabId) {
     document.querySelectorAll('.tab-pane').forEach(pane => {
         pane.classList.toggle('active', pane.id === `${tabId}-pane`);
     });
+
+    if (tabId === 'analytics') {
+        renderAnalytics();
+    }
 }
 
 function toggleTheme() {
@@ -1302,6 +1829,10 @@ function toggleTheme() {
         themeIcon.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>`;
     } else {
         themeIcon.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>`;
+    }
+
+    if (state.activeTab === 'analytics') {
+        renderAnalytics();
     }
 }
 
@@ -1366,6 +1897,12 @@ function initEventBindings() {
             closeDetailsModal();
             return;
         }
+
+        // Close edit modal clicking outside
+        if (e.target.id === 'edit-history-modal') {
+            closeEditHistoryModal();
+            return;
+        }
         
         // Delete history entry
         const delHistBtn = e.target.closest('.delete-history-btn');
@@ -1374,10 +1911,24 @@ function initEventBindings() {
             deleteHistoryEntry(idx);
             return;
         }
+
+        // Edit history entry
+        const editHistBtn = e.target.closest('.edit-history-btn');
+        if (editHistBtn) {
+            const idx = parseInt(editHistBtn.getAttribute('data-index'));
+            openEditHistoryModal(idx);
+            return;
+        }
     });
     
     // Modal controls
     document.getElementById('modal-close-btn').addEventListener('click', closeDetailsModal);
+    
+    // Edit history modal controls
+    const editCancelBtn = document.getElementById('edit-history-cancel-btn');
+    if (editCancelBtn) editCancelBtn.addEventListener('click', closeEditHistoryModal);
+    const editForm = document.getElementById('edit-history-form');
+    if (editForm) editForm.addEventListener('submit', saveEditHistory);
     
     // Settings panel
     document.getElementById('settings-form').addEventListener('submit', saveSettings);

@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>IITM Food Court Tracker</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="app.js" defer></script>
 </head>
 <body>
@@ -26,6 +27,10 @@
                     <button class="tab-btn" data-tab="history">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
                         Eating History
+                    </button>
+                    <button class="tab-btn" data-tab="analytics">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
+                        Analytics
                     </button>
                     <button class="tab-btn" data-tab="settings">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
@@ -183,8 +188,8 @@
                     
                     <div>
                         <select id="filter-suitability" class="input-field">
-                            <option value="current">Current Meal Foods</option>
                             <option value="all">All Catalog Foods</option>
+                            <option value="current">Current Meal Foods</option>
                             <option value="breakfast">Breakfast Options</option>
                             <option value="lunch">Lunch Options</option>
                             <option value="snack">Snack Options</option>
@@ -223,7 +228,114 @@
                 </div>
             </div>
 
-            <!-- Tab 3: Settings / Admin -->
+            <!-- Tab 3: Analytics -->
+            <div class="tab-pane" id="analytics-pane">
+                <div class="analytics-content">
+                    
+                    <!-- KPI Cards Row -->
+                    <div class="dashboard-grid analytics-kpis">
+                        <div class="glass-panel metric-card">
+                            <span class="label">Total Spent in Period</span>
+                            <span class="val text-negative" id="an-total-spent">₹0.00</span>
+                            <span class="metric-subtext" id="an-spent-pct">0% of Starting Balance</span>
+                        </div>
+                        <div class="glass-panel metric-card">
+                            <span class="label">Expected Spend to Date</span>
+                            <span class="val" id="an-expected-spent">₹0.00</span>
+                            <span class="metric-subtext" id="an-spend-diff">₹0.00 difference</span>
+                        </div>
+                        <div class="glass-panel metric-card">
+                            <span class="label">Expected Balance to Date</span>
+                            <span class="val" id="an-expected-balance">₹0.00</span>
+                            <span class="metric-subtext" id="an-balance-status">On Track</span>
+                        </div>
+                        <div class="glass-panel metric-card">
+                            <span class="label">Average Daily Spend</span>
+                            <span class="val" id="an-avg-daily">₹0.00</span>
+                            <span class="metric-subtext" id="an-target-daily">Target: ₹0.00/day</span>
+                        </div>
+                        <div class="glass-panel metric-card">
+                            <span class="label">Highest Spending Day</span>
+                            <span class="val" id="an-peak-day-amount">₹0.00</span>
+                            <span class="metric-subtext" id="an-peak-day-date">-</span>
+                        </div>
+                        <div class="glass-panel metric-card">
+                            <span class="label">Budget Runway Projection</span>
+                            <span class="val" id="an-runway-days">0 days</span>
+                            <span class="metric-subtext" id="an-runway-status">Calculating...</span>
+                        </div>
+                    </div>
+
+                    <!-- Charts Grid -->
+                    <div class="analytics-charts-grid">
+                        <!-- Chart 1: Balance Over Time (Expected vs Actual) -->
+                        <div class="glass-panel chart-card full-width-chart">
+                            <div class="chart-header">
+                                <h4>📉 Balance Over Time: Expected vs. Actual Trajectory</h4>
+                                <span class="chart-sub">Comparing linear consumption target against recorded expenditures</span>
+                            </div>
+                            <div class="chart-container" style="position: relative; height: 320px;">
+                                <canvas id="chart-balance-trend"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Chart 2: Daily Spending -->
+                        <div class="glass-panel chart-card full-width-chart">
+                            <div class="chart-header">
+                                <h4>📊 Daily Spending Over Time</h4>
+                                <span class="chart-sub">Daily totals with baseline target spending line</span>
+                            </div>
+                            <div class="chart-container" style="position: relative; height: 280px;">
+                                <canvas id="chart-daily-spending"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Chart 3: Spending by Meal -->
+                        <div class="glass-panel chart-card">
+                            <div class="chart-header">
+                                <h4>🍽️ Spending by Meal</h4>
+                                <span class="chart-sub">Expenditure distribution across meal windows</span>
+                            </div>
+                            <div class="chart-container" style="position: relative; height: 260px;">
+                                <canvas id="chart-meal-spending"></canvas>
+                            </div>
+                        </div>
+
+                        <!-- Chart 4: Spending by Category -->
+                        <div class="glass-panel chart-card">
+                            <div class="chart-header">
+                                <h4>🥗 Spending by Food Category</h4>
+                                <span class="chart-sub">Total amount spent per food category</span>
+                            </div>
+                            <div class="chart-container" style="position: relative; height: 260px;">
+                                <canvas id="chart-category-spending"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Deep Insights & Ranking Tables -->
+                    <div class="analytics-tables-grid">
+                        <!-- Most Frequently Eaten Foods -->
+                        <div class="glass-panel ranking-card">
+                            <h4 style="margin-bottom: 12px;">🔥 Most Frequently Eaten Foods</h4>
+                            <div class="table-wrapper" id="an-freq-table-wrapper">
+                                <div class="empty-state">No eating records yet.</div>
+                            </div>
+                        </div>
+
+                        <!-- Favorite Foods -->
+                        <div class="glass-panel ranking-card">
+                            <h4 style="margin-bottom: 12px;">⭐ Favorite Foods (Ratings &amp; Frequency)</h4>
+                            <div class="table-wrapper" id="an-favs-table-wrapper">
+                                <div class="empty-state">No ratings or eating records yet.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- Tab 4: Settings / Admin -->
             <div class="tab-pane" id="settings-pane">
                 <div class="settings-layout">
                     
@@ -345,6 +457,42 @@
             </div>
             <div class="modal-footer">
                 <button class="btn btn-outline" id="modal-close-btn">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Eating Record Modal -->
+    <div class="modal-overlay" id="edit-history-modal">
+        <div class="modal-container">
+            <div class="modal-body">
+                <div class="modal-title-row">
+                    <h3>✏️ Edit Eating Record</h3>
+                </div>
+                <div id="edit-history-item-preview" style="background:rgba(0,0,0,0.15); border:1px solid var(--border-color); border-radius:10px; padding:12px; margin:12px 0;">
+                    <div style="font-weight:600; font-size:15px;" id="edit-modal-item-name">Food Item</div>
+                    <div style="display:flex; justify-content:space-between; font-size:12px; color:var(--text-secondary); margin-top:4px;">
+                        <span id="edit-modal-item-category">Category</span>
+                        <span id="edit-modal-item-price" style="font-weight:bold; color:var(--accent-light);">₹0.00</span>
+                    </div>
+                </div>
+                
+                <form id="edit-history-form">
+                    <div class="form-group" style="margin-bottom:14px;">
+                        <label for="edit-record-date">Date</label>
+                        <input type="date" id="edit-record-date" class="input-field" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom:14px;">
+                        <label for="edit-record-time">Time</label>
+                        <input type="time" id="edit-record-time" class="input-field" required>
+                    </div>
+                    <div style="font-size:12px; color:var(--text-muted); margin-bottom:16px; line-height:1.4;">
+                        * Food item and price remain strictly derived from the CSV. The updated timestamp will immediately re-allocate spending across meal windows and daily budgets.
+                    </div>
+                    <div style="display:flex; justify-content:flex-end; gap:10px;">
+                        <button type="button" class="btn btn-outline" id="edit-history-cancel-btn">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save Changes</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
