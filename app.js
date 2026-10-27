@@ -13,7 +13,7 @@ const state = {
     settings: {
         startDate: "2026-09-01",
         endDate: "2026-10-10",
-        startingBalance: 6510,
+        startingBalance: 5772,
         mealWeights: {
             breakfast: 40,
             lunch: 70,
@@ -26,6 +26,11 @@ const state = {
             snack: ["16:30", "17:30"],
             dinner: ["19:00", "21:30"]
         }
+    },
+    settingsProvided: {
+        startDate: false,
+        endDate: false,
+        startingBalance: false
     },
     ratings: {},       // maps foodID -> rating (1 to 5)
     eaten: [],         // [foodID, timestamp, priceAtPurchase, optionalCustomName]
@@ -281,15 +286,17 @@ function initializeDefaultData() {
     const defaultData = {
         version: state.version,
         settings: JSON.parse(JSON.stringify(DEFAULT_SETTINGS)),
+        settingsProvided: { startDate: false, endDate: false, startingBalance: false },
         ratings: {},
         eaten: []
     };
     localStorage.setItem('foodCourtData', JSON.stringify(defaultData));
-    return defaultData;
+    return JSON.parse(localStorage.getItem('foodCourtData'));
 }
 
 /**
- * Loads data from localStorage. Restores default structures if corrupt.
+ * Loads persisted data and fills only missing or invalid fields from defaults.
+ * Existing saved fields always win over hardcoded fallback values.
  */
 function loadUserData() {
     try {
@@ -297,36 +304,75 @@ function loadUserData() {
         if (!stored) {
             return initializeDefaultData();
         }
-        
+
         const data = JSON.parse(stored);
-        
-        // Validate Schema version & key structure (support both V1 and V2)
-        if (
-            !data ||
-            (data.version !== 1 && data.version !== 2 && data.version !== 3) ||
-            !data.settings ||
-            !data.ratings ||
-            !data.eaten ||
-            !data.settings.mealWeights ||
-            !data.settings.mealTimes
-        ) {
-            console.warn("Outdated or invalid data schema in localStorage. Re-initializing.");
-            return initializeDefaultData();
+        const savedSettings = data?.settings && typeof data.settings === 'object' && !Array.isArray(data.settings)
+            ? data.settings
+            : {};
+        const savedWeights = savedSettings.mealWeights && typeof savedSettings.mealWeights === 'object'
+            ? savedSettings.mealWeights
+            : {};
+        const savedTimes = savedSettings.mealTimes && typeof savedSettings.mealTimes === 'object'
+            ? savedSettings.mealTimes
+            : {};
+        const defaultSettings = DEFAULT_SETTINGS;
+        const settings = {
+            ...defaultSettings,
+            ...savedSettings,
+            startDate: typeof savedSettings.startDate === 'string' && savedSettings.startDate
+                ? savedSettings.startDate
+                : defaultSettings.startDate,
+            endDate: typeof savedSettings.endDate === 'string' && savedSettings.endDate
+                ? savedSettings.endDate
+                : defaultSettings.endDate,
+            startingBalance: Number.isFinite(savedSettings.startingBalance)
+                ? savedSettings.startingBalance
+                : defaultSettings.startingBalance,
+            mealWeights: { ...defaultSettings.mealWeights },
+            mealTimes: { ...defaultSettings.mealTimes }
+        };
+
+        Object.keys(defaultSettings.mealWeights).forEach(meal => {
+            settings.mealWeights[meal] = Number.isFinite(savedWeights[meal])
+                ? savedWeights[meal]
+                : defaultSettings.mealWeights[meal];
+            settings.mealTimes[meal] = Array.isArray(savedTimes[meal]) && savedTimes[meal].length === 2
+                ? savedTimes[meal]
+                : defaultSettings.mealTimes[meal];
+        });
+
+        const settingsProvided = {};
+        ['startDate', 'endDate', 'startingBalance'].forEach(key => {
+            const storedFlag = data?.settingsProvided?.[key];
+            if (typeof storedFlag === 'boolean') {
+                settingsProvided[key] = storedFlag;
+                return;
+            }
+            const value = savedSettings[key];
+            const hasValidSavedValue = key === 'startingBalance'
+                ? Number.isFinite(value)
+                : typeof value === 'string' && value.length > 0;
+            settingsProvided[key] = hasValidSavedValue;
+        });
+
+        const normalizedData = {
+            version: state.version,
+            settings,
+            settingsProvided,
+            ratings: data?.ratings && typeof data.ratings === 'object' && !Array.isArray(data.ratings)
+                ? data.ratings
+                : {},
+            eaten: Array.isArray(data?.eaten) ? data.eaten : []
+        };
+
+        // Persist completed defaults once, so the rest of the app reads one
+        // complete localStorage-backed record on every subsequent load.
+        if (JSON.stringify(normalizedData) !== JSON.stringify(data)) {
+            localStorage.setItem('foodCourtData', JSON.stringify(normalizedData));
         }
-        
-        // Check for specific fields in settings to be extra robust
-        if (
-            typeof data.settings.startingBalance !== 'number' ||
-            !data.settings.startDate ||
-            !data.settings.endDate
-        ) {
-            console.warn("Corrupt fields in settings. Re-initializing.");
-            return initializeDefaultData();
-        }
-        
-        return data;
+        return JSON.parse(localStorage.getItem('foodCourtData'));
     } catch (e) {
-        console.error("LocalStorage load/parse failed. Resetting to defaults.", e);
+        console.error("LocalStorage load/parse failed. Initializing defaults.", e);
         return initializeDefaultData();
     }
 }
@@ -335,6 +381,7 @@ function saveUserData() {
     const dataToSave = {
         version: state.version,
         settings: state.settings,
+        settingsProvided: state.settingsProvided,
         ratings: state.ratings,
         eaten: state.eaten
     };
@@ -445,23 +492,40 @@ function calculateFinance() {
     // Current balance
     const currentBalance = state.settings.startingBalance - totalSpent;
     
-    // Today's budget
-    // Zero or negative balances results in a remaining daily budget of ₹0
+    // Keep today's allowance anchored to the balance at the start of the day.
     let todayBudget = 0;
-    if (currentBalance > 0 && daysRemaining > 0 && !isBeforePeriod && !isAfterPeriod) {
-        todayBudget = currentBalance / daysRemaining;
+    const openingBalanceToday = currentBalance + spentTodayTotal;
+    if (openingBalanceToday > 0 && daysRemaining > 0 && !isBeforePeriod && !isAfterPeriod) {
+        todayBudget = openingBalanceToday / daysRemaining;
     }
     
-    // Meal budget distribution
+    // Reallocate completed meals' unused allowance across the meals left today.
     const weights = state.settings.mealWeights;
     const totalMealWeight = weights.breakfast + weights.lunch + weights.snack + weights.dinner;
-    
+    const mealOrder = ['breakfast', 'lunch', 'snack', 'dinner'];
+    const currentMinutes = now.getHours() * 60 + now.getMinutes();
+    const firstMealStart = Math.min(...mealOrder.map(meal => timeToMinutes(state.settings.mealTimes[meal][0])));
+    const passedMeals = currentMinutes < firstMealStart
+        ? new Set()
+        : new Set(mealOrder.filter(meal => currentMinutes > timeToMinutes(state.settings.mealTimes[meal][1])));
     const mealBudgets = { breakfast: 0, lunch: 0, snack: 0, dinner: 0 };
     if (totalMealWeight > 0) {
-        mealBudgets.breakfast = todayBudget * weights.breakfast / totalMealWeight;
-        mealBudgets.lunch = todayBudget * weights.lunch / totalMealWeight;
-        mealBudgets.snack = todayBudget * weights.snack / totalMealWeight;
-        mealBudgets.dinner = todayBudget * weights.dinner / totalMealWeight;
+        const knownMealSpend = Object.values(spentTodayByMeal).reduce((sum, amount) => sum + amount, 0);
+        let remainingAllocation = Math.max(0, todayBudget - Math.max(0, spentTodayTotal - knownMealSpend));
+        let remainingWeight = totalMealWeight;
+
+        mealOrder.forEach(meal => {
+            const weight = Math.max(0, Number(weights[meal]) || 0);
+            const allocation = remainingWeight > 0 ? remainingAllocation * weight / remainingWeight : 0;
+            mealBudgets[meal] = allocation;
+            remainingWeight -= weight;
+
+            if (passedMeals.has(meal)) {
+                remainingAllocation = Math.max(0, remainingAllocation - (spentTodayByMeal[meal] || 0));
+            } else {
+                remainingAllocation = Math.max(0, remainingAllocation - allocation);
+            }
+        });
     }
     
     return {
@@ -474,6 +538,7 @@ function calculateFinance() {
         currentBalance,
         todayBudget,
         mealBudgets,
+        completedMeals: [...passedMeals],
         spentTodayByMeal,
         spentTodayTotal
     };
@@ -673,7 +738,7 @@ function renderDashboard() {
     const fin = calculateFinance();
     console.log(fin)
     // Bind main financial values
-    document.getElementById('db-start-balance').textContent = `₹${state.settings.startingBalance.toFixed(2)}`;
+    document.getElementById('db-start-balance').textContent = `₹${getStartingBalance().toFixed(2)}`;
     document.getElementById('db-total-spent').textContent = `₹${fin.totalSpent.toFixed(2)}`;
     
     const curBalEl = document.getElementById('db-current-balance');
@@ -712,18 +777,15 @@ function renderCurrentMeal() {
     const capitalizedMealName = meal.charAt(0).toUpperCase() + meal.slice(1);
     document.getElementById('lbl-current-meal-title').textContent = capitalizedMealName;
     
-    const budget = fin.mealBudgets[meal] || 0;
-    const spent = fin.spentTodayByMeal[meal] || 0;
-    const remaining = budget - spent;
-    
     document.getElementById('meal-budget-val').textContent = `₹${fin.todayBudget.toFixed(2)}`;
-    document.getElementById('meal-spent-val').textContent = `₹${fin.spentTodayTotal}`;
+    document.getElementById('meal-spent-val').textContent = `₹${fin.spentTodayTotal.toFixed(2)}`;
     
     const remainingValEl = document.getElementById('meal-remaining-val');
-    remainingValEl.textContent = `₹${(fin.todayBudget - fin.spentTodayTotal).toFixed(2)}`;
+    const remainingToday = fin.todayBudget - fin.spentTodayTotal;
+    remainingValEl.textContent = `₹${remainingToday.toFixed(2)}`;
     
     const mealBudgetCard = document.getElementById('current-meal-card');
-    if (remaining < 0) {
+    if (remainingToday < 0) {
         remainingValEl.className = 'val text-negative';
         mealBudgetCard.classList.add('budget-alert-over');
         mealBudgetCard.classList.remove('budget-alert-under');
@@ -741,14 +803,18 @@ function renderCurrentMeal() {
     ['breakfast', 'lunch', 'snack', 'dinner'].forEach(m => {
         const mBudget = fin.mealBudgets[m] || 0;
         const mSpent = fin.spentTodayByMeal[m] || 0;
-        const mRem = mBudget - mSpent;
-        
-        document.getElementById(`grid-budget-${m}`).textContent = `₹${mBudget.toFixed(0)}`;
-        document.getElementById(`grid-spent-${m}`).textContent = `₹${mSpent.toFixed(0)}`;
-        
+        const unspent = mBudget - mSpent;
+        const isCompleted = fin.completedMeals.includes(m);
+        const mRem = isCompleted && unspent < 0 ? Math.abs(unspent) : unspent;
+
+        document.getElementById(`grid-budget-${m}`).textContent = `₹${mBudget.toFixed(2)}`;
+        document.getElementById(`grid-spent-${m}`).textContent = `₹${mSpent.toFixed(2)}`;
+
         const mRemEl = document.getElementById(`grid-rem-${m}`);
-        mRemEl.textContent = `₹${mRem.toFixed(0)}`;
-        mRemEl.className = mRem < 0 ? 'text-negative text-bold' : 'text-positive text-bold';
+        const remLabelEl = mRemEl.previousElementSibling;
+        remLabelEl.textContent = isCompleted ? (unspent < 0 ? 'Over:' : 'Rolled:') : 'Rem:';
+        mRemEl.textContent = `₹${mRem.toFixed(2)}`;
+        mRemEl.className = unspent < 0 ? 'text-negative text-bold' : 'text-positive text-bold';
     });
 }
 
@@ -924,10 +990,9 @@ function renderHistory() {
         return;
     }
     
-    // Group records by Date local timezone
-    const groups = {}; // dateStr -> records array
-    
-    
+    // Group records by date, then by the meal assignment already used elsewhere.
+    const groups = {}; // dateStr -> meal type -> records array
+
     state.eaten.forEach(([foodId, timestamp, savedPrice, customName], index) => {
         const food = state.foodMap[foodId];
         const datePart = timestamp.substring(0, 8); // YYYYMMDD
@@ -944,15 +1009,14 @@ function renderHistory() {
         const min = timestamp.substring(10, 12);
         const timeStr = `${hr}:${min}`;
         
-        if (!groups[datePart]) {
-            groups[datePart] = {
-                title: headerStr,
-                records: []
-            };
-        }
-        groups[datePart].records.push({
+        const mealType = getEntryMealType(state.eaten[index]) || 'unassigned';
+        if (!groups[datePart]) groups[datePart] = { title: headerStr, meals: {} };
+        if (!groups[datePart].meals[mealType]) groups[datePart].meals[mealType] = [];
+
+        groups[datePart].meals[mealType].push({
             index, // Keep global index in state.eaten for removal
             foodId,
+            timestamp,
             foodItem: getEatenRecordName(foodId, customName),
             foodCategory: food ? food.category : (isCustomFoodId(foodId) ? 'Custom item' : 'N/A'),
             price: getEatenRecordPrice(foodId, savedPrice),
@@ -967,30 +1031,49 @@ function renderHistory() {
     let html = '';
     sortedDates.forEach(dateKey => {
         const group = groups[dateKey];
-        // Sort items inside group newest first (highest index first)
-        group.records.sort((a, b) => b.index - a.index);
-        
-        let itemsHtml = group.records.map(rec => `
-            <div class="history-item">
-                <div class="history-item-left">
-                    <span class="history-time">${rec.time}</span>
-                    <div style="display:flex; flex-direction:column; gap:2px;">
-                        <span class="history-name">${escapeHTML(rec.foodItem)}</span>
-                        <span class="history-category">${escapeHTML(rec.foodCategory)} · ${escapeHTML(rec.meal)}</span>
+        const mealOrder = ['breakfast', 'lunch', 'snack', 'dinner', 'unassigned'];
+        const sortedMeals = Object.keys(group.meals).sort((a, b) => mealOrder.indexOf(a) - mealOrder.indexOf(b));
+
+        const mealsHtml = sortedMeals.map(mealType => {
+            const records = group.meals[mealType].sort((a, b) => a.timestamp.localeCompare(b.timestamp) || a.index - b.index);
+            const total = records.reduce((sum, record) => sum + record.price, 0);
+            const countLabel = `${records.length} ${records.length === 1 ? 'item' : 'items'}`;
+            const mealLabel = mealType === 'unassigned' ? 'Meal unassigned' : `${mealType.charAt(0).toUpperCase()}${mealType.slice(1)}`;
+            const itemsHtml = records.map(rec => `
+                <div class="history-item">
+                    <div class="history-item-left">
+                        <span class="history-time">${rec.time}</span>
+                        <div style="display:flex; flex-direction:column; gap:2px;">
+                            <span class="history-name">${escapeHTML(rec.foodItem)}</span>
+                            <span class="history-category">${escapeHTML(rec.foodCategory)}</span>
+                        </div>
+                    </div>
+                    <div class="history-item-right">
+                        <span class="history-price">₹${rec.price.toFixed(2)}</span>
+                        <button class="btn btn-outline btn-xs edit-history-btn" data-index="${rec.index}" title="Edit eating record">✏️ Edit</button>
+                        <button class="delete-history-btn" data-index="${rec.index}" title="Remove entry" aria-label="Remove ${escapeHTML(rec.foodItem)}">×</button>
                     </div>
                 </div>
-                <div class="history-item-right">
-                    <span class="history-price">₹${rec.price.toFixed(2)}</span>
-                    <button class="btn btn-outline btn-xs edit-history-btn" data-index="${rec.index}" title="Edit date and time">✏️ Edit</button>
-                    <button class="delete-history-btn" data-index="${rec.index}" title="Remove entry">×</button>
-                </div>
-            </div>
-        `).join('');
-        
+            `).join('');
+
+            return `
+                <details class="history-meal" ${records.length === 1 ? 'open' : ''}>
+                    <summary class="history-meal-summary">
+                        <span class="history-meal-heading">
+                            <span class="history-meal-name">${mealLabel}</span>
+                            <span class="history-meal-meta">${countLabel}</span>
+                        </span>
+                        <span class="history-meal-total">₹${total.toFixed(2)}</span>
+                    </summary>
+                    <div class="history-group-items">${itemsHtml}</div>
+                </details>
+            `;
+        }).join('');
+
         html += `
             <div class="history-group">
                 <div class="history-group-header">${group.title}</div>
-                <div class="history-group-items">${itemsHtml}</div>
+                <div class="history-meals">${mealsHtml}</div>
             </div>
         `;
     });
@@ -1207,6 +1290,7 @@ function saveSettings(e) {
         mealWeights: { breakfast: bW, lunch: lW, snack: sW, dinner: dW },
         mealTimes: { breakfast: bTime, lunch: lTime, snack: sTime, dinner: dTime }
     };
+    state.settingsProvided = { startDate: true, endDate: true, startingBalance: true };
     
     saveUserData();
     triggerFullUIRender();
@@ -1217,8 +1301,13 @@ function saveSettings(e) {
  * Reset settings to original code defaults.
  */
 function resetSettingsToDefault() {
-    state.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
-    saveUserData();
+    const savedData = loadUserData();
+    savedData.settings = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+    savedData.settingsProvided = { startDate: true, endDate: true, startingBalance: true };
+    localStorage.setItem('foodCourtData', JSON.stringify(savedData));
+    const reloadedData = loadUserData();
+    state.settings = reloadedData.settings;
+    state.settingsProvided = reloadedData.settingsProvided;
     triggerFullUIRender();
     showToast("Settings reset to defaults.", "info");
 }
@@ -1405,6 +1494,45 @@ function parseLedgerDate(value) {
     return `${String(year).padStart(4, '0')}${String(month).padStart(2, '0')}${String(day).padStart(2, '0')}`;
 }
 
+function ledgerDateToISO(compactDate) {
+    return compactDate ? `${compactDate.slice(0, 4)}-${compactDate.slice(4, 6)}-${compactDate.slice(6, 8)}` : null;
+}
+
+function inferLedgerSettings(text, entries) {
+    const suggestions = {};
+    const plainText = String(text)
+        .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/&nbsp;|&#x20;/gi, ' ')
+        .replace(/[*_`]/g, ' ');
+    const periodMatch = plainText.match(/Din(?:ing|ning)\s+Period\s*:?\s*((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},\s*\d{4})\s+to\s+((?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2},\s*\d{4})/i);
+
+    let periodStart = null;
+    if (periodMatch) {
+        const startCompact = parseLedgerDate(periodMatch[1]);
+        const endCompact = parseLedgerDate(periodMatch[2]);
+        if (startCompact && endCompact && startCompact <= endCompact) {
+            periodStart = ledgerDateToISO(startCompact);
+            if (state.settingsProvided.startDate !== true) suggestions.startDate = periodStart;
+            if (state.settingsProvided.endDate !== true) suggestions.endDate = ledgerDateToISO(endCompact);
+        }
+    }
+
+    if (state.settingsProvided.startingBalance !== true && periodStart && entries.length > 0) {
+        const firstEntry = entries[0];
+        const daysBeforePeriod = Math.round((
+            parseLocalDate(periodStart).getTime() - parseLocalDate(ledgerDateToISO(firstEntry.date)).getTime()
+        ) / 86400000);
+        const isOpeningCredit = firstEntry.creditCents > 0 &&
+            firstEntry.debitCents === 0 &&
+            firstEntry.closingCents === firstEntry.creditCents &&
+            daysBeforePeriod >= 0 && daysBeforePeriod <= 1;
+        if (isOpeningCredit) suggestions.startingBalance = firstEntry.creditCents / 100;
+    }
+
+    return suggestions;
+}
+
 function parseFoodCourtLedger(text) {
     const entries = [];
     const errors = [];
@@ -1545,8 +1673,9 @@ function prepareBulkLedgerImport(text) {
     if (parsed.errors.length > 0) return { ...parsed, duplicates: 0, newEntries: [] };
 
     const debitEntries = parsed.entries.filter(entry => entry.debitCents > 0);
-    if (debitEntries.length === 0) {
-        return { ...parsed, errors: ['No debit/purchase rows found to import.'], duplicates: 0, newEntries: [] };
+    const settingsSuggestions = inferLedgerSettings(text, parsed.entries);
+    if (debitEntries.length === 0 && Object.keys(settingsSuggestions).length === 0) {
+        return { ...parsed, errors: ['No debit/purchase rows or missing settings could be inferred from this report.'], duplicates: 0, newEntries: [], settingsSuggestions };
     }
     inferLedgerMeals(debitEntries);
 
@@ -1580,7 +1709,7 @@ function prepareBulkLedgerImport(text) {
         ]);
     });
 
-    return { ...parsed, debitEntries, duplicates, newEntries };
+    return { ...parsed, debitEntries, duplicates, newEntries, settingsSuggestions };
 }
 
 function openBulkLedgerModal() {
@@ -1626,14 +1755,25 @@ function previewBulkLedgerImport() {
         `New purchases to add: ${result.newEntries.length}`,
         `Inferred meals (editable in History): ${mealSummary.join(', ') || 'none'}`,
         `Calculated final ledger balance: ₹${(result.calculatedClosingCents / 100).toFixed(2)} (matches the last report row).`,
-        '',
-        'The app budget settings will not change.'
+        ''
     ];
+    const inferredSettings = [];
+    if (result.settingsSuggestions.startDate) inferredSettings.push(`Start date: ${result.settingsSuggestions.startDate} (Dining Period)`);
+    if (result.settingsSuggestions.endDate) inferredSettings.push(`End date: ${result.settingsSuggestions.endDate} (Dining Period)`);
+    if (Number.isFinite(result.settingsSuggestions.startingBalance)) {
+        inferredSettings.push(`Starting balance: ₹${result.settingsSuggestions.startingBalance.toFixed(2)} (opening credit row)`);
+    }
+    lines.push(inferredSettings.length > 0
+        ? `Missing settings to fill from this report:\n${inferredSettings.join('\n')}`
+        : 'No missing budget settings could be inferred. Existing saved settings will be kept.');
     preview.textContent = lines.join('\n');
 
-    if (result.newEntries.length > 0) {
+    if (result.newEntries.length > 0 || inferredSettings.length > 0) {
         pendingBulkImport = result;
-        importButton.textContent = `Import ${result.newEntries.length} new purchase${result.newEntries.length === 1 ? '' : 's'}`;
+        const actions = [];
+        if (result.newEntries.length > 0) actions.push(`Import ${result.newEntries.length} purchase${result.newEntries.length === 1 ? '' : 's'}`);
+        if (inferredSettings.length > 0) actions.push(`save ${inferredSettings.length} setting${inferredSettings.length === 1 ? '' : 's'}`);
+        importButton.textContent = actions.join(' & ');
         importButton.style.display = 'inline-flex';
     }
 }
@@ -1642,10 +1782,20 @@ function commitBulkLedgerImport() {
     if (!pendingBulkImport || pendingBulkImport.errors.length > 0) return;
     const entries = pendingBulkImport.newEntries;
     state.eaten.push(...entries);
+    const appliedSettings = [];
+    Object.entries(pendingBulkImport.settingsSuggestions || {}).forEach(([key, value]) => {
+        if (state.settingsProvided[key] === true) return;
+        state.settings[key] = value;
+        state.settingsProvided[key] = true;
+        appliedSettings.push(key);
+    });
     saveUserData();
     triggerFullUIRender();
     closeBulkLedgerModal();
-    showToast(`Imported ${entries.length} food court purchase${entries.length === 1 ? '' : 's'}.`, 'success');
+    const messages = [];
+    if (entries.length > 0) messages.push(`Imported ${entries.length} food court purchase${entries.length === 1 ? '' : 's'}`);
+    if (appliedSettings.length > 0) messages.push(`filled ${appliedSettings.length} missing budget setting${appliedSettings.length === 1 ? '' : 's'}`);
+    showToast(`${messages.join(' and ')}.`, 'success');
 }
 
 function openEditHistoryModal(index) {
@@ -1748,6 +1898,13 @@ const chartInstances = {
     categorySpending: null
 };
 
+// The dashboard and analytics both use the starting balance restored from
+// the saved foodCourtData settings during app bootstrap.
+function getStartingBalance() {
+    const balance = Number(state.settings?.startingBalance);
+    return Number.isFinite(balance) ? balance : 0;
+}
+
 function renderAnalytics() {
     if (typeof Chart === 'undefined') {
         console.warn("Chart.js is not loaded.");
@@ -1770,7 +1927,7 @@ function renderAnalytics() {
         daysElapsed = Math.round((today.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1;
     }
 
-    const startingBalance = state.settings.startingBalance;
+    const startingBalance = getStartingBalance();
     const dailyExpectedBurn = totalDays > 0 ? (startingBalance / totalDays) : 0;
     const expectedSpendToDate = daysElapsed * dailyExpectedBurn;
     const expectedBalanceToDate = Math.max(0, startingBalance - expectedSpendToDate);
@@ -1797,8 +1954,10 @@ function renderAnalytics() {
             mealSpendMap[mealType] = (mealSpendMap[mealType] || 0) + price;
         }
 
-        const cat = food ? food.category : (isCustomFoodId(foodId) ? 'Custom item' : 'Other');
-        categorySpendMap[cat] = (categorySpendMap[cat] || 0) + price;
+        if (!isCustomFoodId(foodId)) {
+            const cat = food ? food.category : 'Other';
+            categorySpendMap[cat] = (categorySpendMap[cat] || 0) + price;
+        }
 
         foodCountMap[foodId] = (foodCountMap[foodId] || 0) + 1;
         foodSpendMap[foodId] = (foodSpendMap[foodId] || 0) + price;
@@ -1926,9 +2085,13 @@ function renderAnalytics() {
 
     let runningCumSpend = 0;
     const curDate = new Date(start.getTime());
+    const oneWeekAhead = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 7);
+    const chartEnd = new Date(Math.min(end.getTime(), oneWeekAhead.getTime()));
+    // A future budget period can start after this week's lookahead. Keep its first day visible.
+    if (chartEnd < start) chartEnd.setTime(start.getTime());
     let dayIndex = 0;
 
-    while (curDate <= end) {
+    while (curDate <= chartEnd) {
         const yStr = curDate.getFullYear();
         const mStr = String(curDate.getMonth() + 1).padStart(2, '0');
         const dStr = String(curDate.getDate()).padStart(2, '0');
@@ -1951,6 +2114,21 @@ function renderAnalytics() {
         curDate.setDate(curDate.getDate() + 1);
         dayIndex++;
     }
+
+    // Fit the vertical axis to balances in the visible window, with breathing room.
+    const visibleBalances = [...expectedData, ...actualData].filter(Number.isFinite);
+    const visibleMin = Math.min(...visibleBalances);
+    const visibleMax = Math.max(...visibleBalances);
+    const visibleSpan = visibleMax - visibleMin;
+    const axisPadding = Math.max(visibleSpan * 0.08, Math.max(Math.abs(visibleMin), Math.abs(visibleMax), 1) * 0.01);
+    const paddedMin = visibleMin - axisPadding;
+    const paddedMax = visibleMax + axisPadding;
+    const approximateTick = Math.max(1, (paddedMax - paddedMin) / 5);
+    const tickMagnitude = Math.max(1, 10 ** Math.floor(Math.log10(approximateTick)));
+    const normalizedTick = approximateTick / tickMagnitude;
+    const tickStep = (normalizedTick <= 1 ? 1 : normalizedTick <= 2 ? 2 : normalizedTick <= 5 ? 5 : 10) * tickMagnitude;
+    const balanceAxisMin = Math.floor(paddedMin / tickStep) * tickStep;
+    const balanceAxisMax = Math.ceil(paddedMax / tickStep) * tickStep;
 
     const ctxBalance = document.getElementById('chart-balance-trend');
     if (ctxBalance) {
@@ -1990,16 +2168,38 @@ function renderAnalytics() {
                 },
                 scales: {
                     x: { ticks: { color: textColor, maxTicksLimit: 12 }, grid: { color: gridColor } },
-                    y: { ticks: { color: textColor, callback: v => `₹${v}` }, grid: { color: gridColor } }
+                    y: {
+                        min: balanceAxisMin,
+                        max: balanceAxisMax,
+                        beginAtZero: false,
+                        ticks: { color: textColor, callback: v => `₹${v}` },
+                        grid: { color: gridColor }
+                    }
                 }
             }
         });
     }
 
     // Chart 2: Daily Spending
-    const dailyKeys = Object.keys(dailySpendMap).sort();
-    const dailyLabels = dailyKeys.map(k => `${k.substring(4, 6)}/${k.substring(6, 8)}`);
-    const dailyValues = dailyKeys.map(k => dailySpendMap[k]);
+    const dailyChartEnd = today < start ? null : new Date(Math.min(today.getTime(), end.getTime()));
+    const dailyKeys = [];
+    if (dailyChartEnd) {
+        const chartDate = new Date(start.getTime());
+        while (chartDate <= dailyChartEnd) {
+            const key = `${chartDate.getFullYear()}${String(chartDate.getMonth() + 1).padStart(2, '0')}${String(chartDate.getDate()).padStart(2, '0')}`;
+            dailyKeys.push(key);
+            chartDate.setDate(chartDate.getDate() + 1);
+        }
+    }
+    const dailyLabels = dailyKeys.map(key => `${key.substring(4, 6)}/${key.substring(6, 8)}`);
+    const dailyValues = dailyKeys.map(key => dailySpendMap[key] || 0);
+    let openingBalance = startingBalance;
+    const dailyTargetValues = dailyKeys.map((key, index) => {
+        const daysRemaining = totalDays - index;
+        const target = daysRemaining > 0 ? Math.max(0, openingBalance / daysRemaining) : 0;
+        openingBalance -= dailySpendMap[key] || 0;
+        return target;
+    });
 
     const ctxDaily = document.getElementById('chart-daily-spending');
     if (ctxDaily) {
@@ -2013,7 +2213,19 @@ function renderAnalytics() {
                         data: dailyValues.length > 0 ? dailyValues : [0],
                         backgroundColor: '#38bdf8',
                         borderRadius: 6
-                    }
+                    },
+                    ...(dailyKeys.length > 0 ? [{
+                        type: 'line',
+                        label: 'Adaptive Daily Budget',
+                        data: dailyTargetValues,
+                        borderColor: '#f59e0b',
+                        borderDash: [6, 4],
+                        borderWidth: 2,
+                        pointRadius: 0,
+                        pointHoverRadius: 4,
+                        tension: 0,
+                        fill: false
+                    }] : [])
                 ]
             },
             options: {
@@ -2098,11 +2310,14 @@ function renderAnalytics() {
 
     // Tables: Most Frequently Eaten Foods
     const freqWrapper = document.getElementById('an-freq-table-wrapper');
-    const sortedFreqIds = Object.keys(foodCountMap).sort((a, b) => foodCountMap[b] - foodCountMap[a]).slice(0, 8);
+    const sortedFreqIds = Object.keys(foodCountMap)
+        .filter(fId => !isCustomFoodId(fId))
+        .sort((a, b) => foodCountMap[b] - foodCountMap[a])
+        .slice(0, 8);
     
     if (freqWrapper) {
         if (sortedFreqIds.length === 0) {
-            freqWrapper.innerHTML = `<div class="empty-state">No eating records yet.</div>`;
+            freqWrapper.innerHTML = `<div class="empty-state">No catalog food records to rank yet.</div>`;
         } else {
             let rowsHtml = sortedFreqIds.map((fId, idx) => {
                 const food = state.foodMap[fId];
@@ -2145,14 +2360,14 @@ function renderAnalytics() {
         const count = foodCountMap[fId] || 0;
         const score = (rating * 20) + (count * 5);
         return { fId, rating, count, score };
-    });
+    }).filter(fav => !isCustomFoodId(fav.fId));
 
     favCandidates.sort((a, b) => b.score - a.score);
     const topFavs = favCandidates.slice(0, 8);
 
     if (favsWrapper) {
         if (topFavs.length === 0 || (topFavs[0].rating === 0 && topFavs[0].count === 0)) {
-            favsWrapper.innerHTML = `<div class="empty-state">No ratings or eating records yet.</div>`;
+            favsWrapper.innerHTML = `<div class="empty-state">No rated or eaten catalog foods yet.</div>`;
         } else {
             let rowsHtml = topFavs.map((fav, idx) => {
                 const food = state.foodMap[fav.fId];
@@ -2414,6 +2629,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     // 1. Initial LocalStorage Sync & Schema setup
     const userData = loadUserData();
     state.settings = userData.settings;
+    state.settingsProvided = userData.settingsProvided;
     state.ratings = userData.ratings;
     state.eaten = userData.eaten;
     

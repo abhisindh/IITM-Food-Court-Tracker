@@ -1543,3 +1543,59 @@ textarea.input-field { min-height: 180px; }
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* Meal grouped history */
+.history-meals { display: flex; flex-direction: column; gap: .55rem; }
+.history-meal {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+    border-radius: .9rem;
+    background: var(--bg-surface);
+}
+.history-meal[open] { box-shadow: var(--card-shadow); }
+.history-meal-summary {
+    min-height: 58px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: .7rem 1rem;
+    cursor: pointer;
+    list-style: none;
+}
+.history-meal-summary::-webkit-details-marker { display: none; }
+.history-meal-summary::after {
+    content: '+';
+    order: 3;
+    display: grid;
+    place-items: center;
+    flex: 0 0 28px;
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    background: var(--bg-primary);
+    color: var(--text-secondary);
+    font-size: 1.1rem;
+}
+.history-meal[open] > .history-meal-summary::after { content: '−'; }
+.history-meal-summary:hover { background: color-mix(in srgb, var(--accent-primary) 7%, transparent); }
+.history-meal-heading { display: flex; align-items: baseline; flex-wrap: wrap; gap: .45rem .65rem; min-width: 0; }
+.history-meal-name { font-weight: 650; color: var(--text-primary); }
+.history-meal-meta { color: var(--text-muted); font-size: .78rem; }
+.history-meal-total { margin-left: auto; white-space: nowrap; font-weight: 700; font-variant-numeric: tabular-nums; }
+.history-meal > .history-group-items { padding: 0 .6rem .6rem; }
+.history-meal .history-item { background: color-mix(in srgb, var(--bg-primary) 30%, transparent); }
+.history-meal .history-item + .history-item { margin-top: .4rem; }
+.meal-budget-rollover-hint { color: var(--text-secondary); font-size: .78rem; line-height: 1.45; }
+
+@media (max-width: 639px) {
+    .history-meal-summary { min-height: 54px; padding: .6rem .7rem; gap: .4rem; }
+    .history-meal-heading { gap: .2rem .45rem; }
+    .history-meal-name { font-size: .88rem; }
+    .history-meal-meta { font-size: .7rem; }
+    .history-meal-total { font-size: .88rem; }
+    .history-meal-summary::after { flex-basis: 26px; width: 26px; height: 26px; }
+    .history-meal > .history-group-items { padding: 0 .4rem .4rem; }
+    .meal-budget-rollover-hint { font-size: .72rem; }
+}

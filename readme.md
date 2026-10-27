@@ -50,15 +50,17 @@ corresponds to:
 
 `20% : 35% : 10% : 35%`
 
-The daily budget is recalculated dynamically:
+At the start of each day, the daily budget is recalculated from the opening balance:
 
 ```text
-Current Balance
+Balance at the Start of Today
 ──────────────────────────
 Days Remaining Including Today
 ```
 
-The Eating History tab also supports bulk import from a pasted Student Food Court Purchase Report. The importer validates consecutive closing balances, adds debit rows, and skips previously imported rows matching date, amount, and closing balance. It does not change budget settings. Meal estimates use the daily purchase count and voucher-number gaps; days with fewer than three purchases use historical average spend per meal when available. Estimates can be changed in the History editor. Because the report has no times, imported entries retain date-only timestamps.
+Meal allowances begin using the configured weights. When a meal window ends, its actual spend is settled and any unused allowance is redistributed across the remaining meals in proportion to their weights. Overspending reduces the allowance available to later meals. Any funds left after the final meal remain in the balance and are included in the next day's calculation.
+
+The Eating History tab also supports bulk import from a pasted Student Food Court Purchase Report. The importer validates consecutive closing balances, adds debit rows, and skips previously imported rows matching date, amount, and closing balance. It can fill missing start/end dates from the Dining Period and a missing starting balance from a matching opening credit row; saved settings are preserved. Meal estimates use the daily purchase count and voucher-number gaps; days with fewer than three purchases use historical average spend per meal when available. Estimates can be changed in the History editor. Because the report has no times, imported entries retain date-only timestamps.
 
 Only actual purchases reduce the balance. Meal budgets are recommendations and are never deducted automatically.
 
@@ -377,6 +379,12 @@ Conceptually:
       snack: 20,
       dinner: 70
     }
+  },
+
+  settingsProvided: {
+    startDate: true,
+    endDate: true,
+    startingBalance: true
   },
 
   ratings: {

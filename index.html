@@ -126,6 +126,7 @@
                                 <button class="meal-pill" data-meal="dinner">Dinner</button>
                             </div>
                         </div>
+                        <p class="meal-budget-rollover-hint">When a meal window ends, its unused budget rolls into the meals left today. Overspending reduces their budgets.</p>
                         <!-- <h4 style="font-size:13px; text-transform:uppercase; color:var(--text-secondary); letter-spacing:0.5px; margin-bottom:4px;">Today's Meal Allocation Summary</h4> -->
                         <div class="meal-budgets-grid">
                             <div class="meal-grid-card">
@@ -276,7 +277,7 @@
                         <div class="glass-panel chart-card full-width-chart">
                             <div class="chart-header">
                                 <h4>📉 Balance Over Time: Expected vs. Actual Trajectory</h4>
-                                <span class="chart-sub">Comparing linear consumption target against recorded expenditures</span>
+                            <span class="chart-sub">Expected balance through the next 7 days; actual balance through today</span>
                             </div>
                             <div class="chart-container" style="position: relative; height: 320px;">
                                 <canvas id="chart-balance-trend"></canvas>
@@ -287,7 +288,7 @@
                         <div class="glass-panel chart-card full-width-chart">
                             <div class="chart-header">
                                 <h4>📊 Daily Spending Over Time</h4>
-                                <span class="chart-sub">Daily totals with baseline target spending line</span>
+                                <span class="chart-sub">Actual spend vs. the adaptive daily budget for the remaining period</span>
                             </div>
                             <div class="chart-container" style="position: relative; height: 280px;">
                                 <canvas id="chart-daily-spending"></canvas>
@@ -564,7 +565,7 @@
                     <h3>⇧ Import Food Court Report</h3>
                 </div>
                 <p style="color:var(--text-secondary); font-size:13px; margin:8px 0 14px;">
-                    Paste the report table or a continuous chunk of rows. Credits are used to verify the ledger balance; debit rows are added as purchases. Budget settings are left unchanged.
+                    Paste the report table or a continuous chunk of rows. Credits verify the ledger balance, debit rows are added as purchases, and the dining period or opening balance can fill missing budget settings. Existing saved settings are kept.
                 </p>
                 <div class="form-group" style="margin-bottom:14px;">
                     <label for="bulk-ledger-text">Report text</label>
