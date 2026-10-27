@@ -213,13 +213,17 @@
             <!-- Tab 2: Eating History -->
             <div class="tab-pane" id="history-pane">
                 <div class="history-pane-content">
-                    <div class="glass-panel" style="display:flex; justify-content:space-between; align-items:center;">
+                    <div class="glass-panel" style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:16px;">
                         <div>
                             <h3 style="font-size:18px; font-weight:600;">📝 Eating History Log</h3>
-                            <p style="font-size:13px; color:var(--text-secondary);">Chronological records of items consumed</p>
+                            <p style="font-size:13px; color:var(--text-secondary);">Chronological records of food and custom purchases</p>
                         </div>
-                        <div style="font-size:12px; color:var(--text-muted); font-style:italic; max-width:250px; text-align:right;">
-                            * Prices retrieved dynamically from database. Historical values recalculate if prices change.
+                        <div style="display:flex; flex-wrap:wrap; align-items:center; justify-content:flex-end; gap:14px;">
+                            <div style="font-size:12px; color:var(--text-muted); font-style:italic; max-width:250px; text-align:right;">
+                                * Logged prices are saved with each record.
+                            </div>
+                            <button type="button" class="btn btn-outline btn-sm" id="bulk-ledger-open-btn">⇧ Import ledger text</button>
+                            <button type="button" class="btn btn-primary btn-sm" id="add-custom-entry-btn">＋ Add custom amount</button>
                         </div>
                     </div>
                     <div class="glass-panel" id="history-list">
@@ -478,6 +482,25 @@
                 
                 <form id="edit-history-form">
                     <div class="form-group" style="margin-bottom:14px;">
+                        <label for="edit-record-name">Item name</label>
+                        <input type="text" id="edit-record-name" class="input-field" maxlength="100" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom:14px;">
+                        <label for="edit-record-price">Price (₹)</label>
+                        <input type="number" id="edit-record-price" class="input-field" min="0" step="0.01" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom:14px;">
+                        <label for="edit-record-meal">Meal allocation</label>
+                        <select id="edit-record-meal" class="input-field">
+                            <option value="auto">Auto from time</option>
+                            <option value="unassigned">Unassigned</option>
+                            <option value="breakfast">Breakfast</option>
+                            <option value="lunch">Lunch</option>
+                            <option value="snack">Snack</option>
+                            <option value="dinner">Dinner</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin-bottom:14px;">
                         <label for="edit-record-date">Date</label>
                         <input type="date" id="edit-record-date" class="input-field" required>
                     </div>
@@ -486,13 +509,75 @@
                         <input type="time" id="edit-record-time" class="input-field" required>
                     </div>
                     <div style="font-size:12px; color:var(--text-muted); margin-bottom:16px; line-height:1.4;">
-                        * Food item and price remain strictly derived from the CSV. The updated timestamp will immediately re-allocate spending across meal windows and daily budgets.
+                        * Name, price, date, and time changes are saved to this record. Price edits update spending totals; date and time edits re-allocate spending across meal windows and daily budgets.
                     </div>
                     <div style="display:flex; justify-content:flex-end; gap:10px;">
                         <button type="button" class="btn btn-outline" id="edit-history-cancel-btn">Cancel</button>
                         <button type="submit" class="btn btn-primary">Save Changes</button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Custom Purchase Modal -->
+    <div class="modal-overlay" id="custom-entry-modal">
+        <div class="modal-container">
+            <div class="modal-body">
+                <div class="modal-title-row">
+                    <h3>＋ Add Custom Purchase</h3>
+                </div>
+                <p style="color:var(--text-secondary); font-size:13px; margin:8px 0 16px;">Log a menu item that is not in the food database.</p>
+                <form id="custom-entry-form">
+                    <div class="form-group" style="margin-bottom:14px;">
+                        <label for="custom-entry-name">Item name</label>
+                        <input type="text" id="custom-entry-name" class="input-field" maxlength="100" required>
+                    </div>
+                    <div class="form-group" style="margin-bottom:14px;">
+                        <label for="custom-entry-amount">Amount (₹)</label>
+                        <input type="number" id="custom-entry-amount" class="input-field" min="0.01" step="0.01" required>
+                    </div>
+                    <div class="form-group-grid" style="margin-bottom:16px;">
+                        <div class="form-group">
+                            <label for="custom-entry-date">Date</label>
+                            <input type="date" id="custom-entry-date" class="input-field" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="custom-entry-time">Time</label>
+                            <input type="time" id="custom-entry-time" class="input-field" required>
+                        </div>
+                    </div>
+                    <div style="display:flex; justify-content:flex-end; gap:10px;">
+                        <button type="button" class="btn btn-outline" id="custom-entry-cancel-btn">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Save Purchase</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk Food Court Ledger Import Modal -->
+    <div class="modal-overlay" id="bulk-ledger-modal">
+        <div class="modal-container" style="max-width:760px;">
+            <div class="modal-body">
+                <div class="modal-title-row">
+                    <h3>⇧ Import Food Court Report</h3>
+                </div>
+                <p style="color:var(--text-secondary); font-size:13px; margin:8px 0 14px;">
+                    Paste the report table or a continuous chunk of rows. Credits are used to verify the ledger balance; debit rows are added as purchases. Budget settings are left unchanged.
+                </p>
+                <div class="form-group" style="margin-bottom:14px;">
+                    <label for="bulk-ledger-text">Report text</label>
+                    <textarea id="bulk-ledger-text" class="input-field" rows="12" placeholder="Paste the Student Food Court Purchase Report here" style="resize:vertical; font-family:monospace; font-size:12px;"></textarea>
+                </div>
+                <div style="display:flex; justify-content:flex-end; gap:10px; margin-bottom:12px;">
+                    <button type="button" class="btn btn-outline" id="bulk-ledger-cancel-btn">Close</button>
+                    <button type="button" class="btn btn-primary" id="bulk-ledger-preview-btn">Validate & Preview</button>
+                </div>
+                <div id="bulk-ledger-preview" class="glass-panel" style="display:none; white-space:pre-wrap; font-size:13px; line-height:1.5;"></div>
+                <div style="display:flex; justify-content:flex-end; margin-top:12px;">
+                    <button type="button" class="btn btn-primary" id="bulk-ledger-import-btn" style="display:none;">Import new purchases</button>
+                </div>
             </div>
         </div>
     </div>

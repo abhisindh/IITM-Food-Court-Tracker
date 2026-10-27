@@ -18,7 +18,7 @@ IITM Food Court Tracker addresses these problems through four connected componen
 * **Budget engine** — continuously calculates the remaining budget and daily/meal-wise spending allowance.
 * **Food database** — stores food, price, serving size, and approximate nutritional information in CSV.
 * **Recommendation engine** — ranks foods using nutrition, meal suitability, personal ratings, and controlled exploration.
-* **Eating history** — records what was eaten and when using a minimal localStorage representation.
+* **Eating history** — records food and custom purchases with their timestamp and purchase-time amount.
 
 The application is entirely client-side. User data stays in the browser.
 
@@ -58,6 +58,8 @@ Current Balance
 Days Remaining Including Today
 ```
 
+The Eating History tab also supports bulk import from a pasted Student Food Court Purchase Report. The importer validates consecutive closing balances, adds debit rows, and skips previously imported rows matching date, amount, and closing balance. It does not change budget settings. Meal estimates use the daily purchase count and voucher-number gaps; days with fewer than three purchases use historical average spend per meal when available. Estimates can be changed in the History editor. Because the report has no times, imported entries retain date-only timestamps.
+
 Only actual purchases reduce the balance. Meal budgets are recommendations and are never deducted automatically.
 
 ---
@@ -95,18 +97,18 @@ Food records contain information such as:
 
 The CSV is treated as the master source of truth for food metadata.
 
-User-specific data does not duplicate this information.
+User-specific data does not duplicate food metadata; eating records keep a price snapshot for accurate historical spending.
 
 ---
 
 ## Minimal Data Model
 
-A deliberate design decision in this project is to avoid redundant localStorage data.
+A deliberate design decision in this project is to keep localStorage compact while preserving purchase-time prices.
 
-An eating record contains only:
+An eating record contains:
 
 ```js
-["0042", "202609011230"]
+["0042", "202609011230", 85]
 ```
 
 where:
@@ -114,19 +116,26 @@ where:
 ```text
 0042             → food ID
 202609011230     → YYYYMMDDHHMM
+85               → price in rupees at the time it was logged
 ```
 
-The application retrieves the food name, price, nutrition, and category from the CSV whenever required.
+Custom purchases use the same record with a custom item ID and a fourth field for the display name:
 
-Therefore, an eating record does **not** store:
+```js
+["custom:lemon-rice", "202609011230", 85, "Lemon Rice"]
+```
+
+The application retrieves the food name, nutrition, and category from the CSV by default. The purchase-time price is stored with the eating record so later CSV price changes do not alter past spending. Editing a history record can save a name override and a corrected price for that purchase.
+
+For CSV-backed foods, an eating record does **not** store:
 
 ```text
-food name
-price
 category
 nutrition
 meal type
 ```
+
+Custom purchase records store the entered item name because those items do not have a matching CSV row. The optional fourth field also preserves edited name overrides.
 
 This makes the stored state compact and keeps the food database as the single source of truth.
 
@@ -245,22 +254,12 @@ Current Balance =
 Starting Balance − Total Cost of Eaten Items
 ```
 
-For every eating record:
-
-```text
-food ID
-   ↓
-CSV lookup
-   ↓
-price
-   ↓
-total spending
-```
+For every eating record, the saved purchase-time price is added to total spending.
 
 This means the application can reconstruct the complete financial state from:
 
 ```text
-Settings + Food Database + Eating History
+Settings + Eating History
 ```
 
 Calculated values such as current balance, daily budget, and meal budgets are intentionally not persisted.
@@ -349,7 +348,7 @@ A rating:
 An eating action:
 
 * Records food ID + timestamp
-* Retrieves price from the CSV
+* Stores the price with the eating record
 * Updates total spending
 * Updates current balance
 * Updates today's spending
@@ -366,7 +365,7 @@ Conceptually:
 
 ```js
 {
-  version: 1,
+  version: 3,
 
   settings: {
     startDate: "2026-09-01",
@@ -386,8 +385,8 @@ Conceptually:
   },
 
   eaten: [
-    ["0042", "202609011230"],
-    ["0001", "202609010800"]
+    ["0042", "202609011230", 85, null, "lunch"],
+    ["custom:lemon-rice", "202609011230", 85, "Lemon Rice", "breakfast"]
   ]
 }
 ```
@@ -414,11 +413,9 @@ Therefore:
 
 continues to identify the same food even if its display name changes.
 
-### No redundant financial data
+### Purchase-time prices
 
-Prices are not duplicated into eating records.
-
-The CSV remains the source of truth.
+Each eating record stores the item's price when it was logged. Updating the CSV later does not change historical spending. Older records that lack a saved price are migrated using the current CSV price because their original purchase price is unavailable.
 
 ### No stored calculated values
 

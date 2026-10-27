@@ -9,7 +9,7 @@
 const state = {
     foodDb: [],        // Raw array of food items loaded from CSV
     foodMap: {},       // Map of foodID -> foodObject for O(1) lookups
-    version: 1,        // Schema version
+    version: 3,        // Schema version
     settings: {
         startDate: "2026-09-01",
         endDate: "2026-10-10",
@@ -28,7 +28,7 @@ const state = {
         }
     },
     ratings: {},       // maps foodID -> rating (1 to 5)
-    eaten: [],         // array of [foodID, timestamp]
+    eaten: [],         // [foodID, timestamp, priceAtPurchase, optionalCustomName]
     
     // UI states
     currentMeal: 'lunch',
@@ -199,6 +199,67 @@ async function loadFoodDatabase() {
     }
 }
 
+/**
+ * Adds a purchase-time price to legacy eating records and persists the new schema.
+ * Legacy records use the current CSV price because their historical price is unavailable.
+ */
+function migrateEatenPrices() {
+    state.eaten = state.eaten.map(record => {
+        if (!Array.isArray(record)) return record;
+        const [foodId, timestamp, savedPrice] = record;
+        if (Number.isFinite(savedPrice) && savedPrice >= 0) return record;
+
+        const currentPrice = state.foodMap[foodId]?.price;
+        return [foodId, timestamp, Number.isFinite(currentPrice) ? currentPrice : 0];
+    });
+
+    saveUserData();
+}
+
+function getEatenRecordPrice(foodId, savedPrice) {
+    if (Number.isFinite(savedPrice) && savedPrice >= 0) return savedPrice;
+    const currentPrice = state.foodMap[foodId]?.price;
+    return Number.isFinite(currentPrice) ? currentPrice : 0;
+}
+
+function isCustomFoodId(foodId) {
+    return typeof foodId === 'string' && foodId.startsWith('custom:');
+}
+
+function isFoodCourtLedgerEntry(foodId) {
+    return foodId === 'custom:food-court-ledger' || (typeof foodId === 'string' && foodId.startsWith('custom:food-court-ledger:'));
+}
+
+const MEAL_TYPES = ['breakfast', 'lunch', 'snack', 'dinner'];
+
+function getEntryMealOverride(record) {
+    const metadata = record.slice(4);
+    return isFoodCourtLedgerEntry(record[0]) ? metadata[4] : metadata[0];
+}
+
+function getEntryMealType(record) {
+    const [foodId, timestamp] = record;
+    const override = getEntryMealOverride(record);
+    if (MEAL_TYPES.includes(override)) return override;
+    if (override === 'unassigned' || isFoodCourtLedgerEntry(foodId)) return null;
+    return getMealTypeForTime(`${timestamp.substring(8, 10)}:${timestamp.substring(10, 12)}`, state.settings.mealTimes);
+}
+
+function getEntryMealLabel(record) {
+    const meal = getEntryMealType(record);
+    return meal ? `${meal.charAt(0).toUpperCase()}${meal.slice(1)}` : 'Meal unassigned';
+}
+
+function getEatenRecordName(foodId, customName) {
+    return customName || state.foodMap[foodId]?.item || `Unknown Item (${foodId})`;
+}
+
+function escapeHTML(value) {
+    return String(value).replace(/[&<>"']/g, char => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    })[char]);
+}
+
 function showDatabaseErrorAlert(msg) {
     const catalogContainer = document.getElementById('catalog-content');
     if (catalogContainer) {
@@ -242,7 +303,7 @@ function loadUserData() {
         // Validate Schema version & key structure (support both V1 and V2)
         if (
             !data ||
-            (data.version !== 1 && data.version !== 2) ||
+            (data.version !== 1 && data.version !== 2 && data.version !== 3) ||
             !data.settings ||
             !data.ratings ||
             !data.eaten ||
@@ -355,27 +416,28 @@ function calculateFinance() {
         daysRemaining = Math.round(diffTimeRemaining / (1000 * 60 * 60 * 24)) + 1;
     }
     
-    // Calculate total spent based on actual CSV values of items eaten (dynamic lookup)
+    // Calculate total spent using saved purchase prices, with a CSV fallback for legacy records.
     let totalSpent = 0;
     const todayStr = getLocalDateString(today);
     let spentTodayTotal = 0;
     const spentTodayByMeal = { breakfast: 0, lunch: 0, snack: 0, dinner: 0 };
     
-    state.eaten.forEach(([foodId, timestamp]) => {
+    state.eaten.forEach(record => {
+        const [foodId, timestamp, savedPrice] = record;
         const food = state.foodMap[foodId];
-        if (food) {
-            totalSpent += food.price;
+        const price = getEatenRecordPrice(foodId, savedPrice);
+        if (food || price > 0) {
+            totalSpent += price;
             
             // Check if item was eaten today
             if (timestamp.substring(0, 8) === todayStr) {
-                spentTodayTotal += food.price;
+                spentTodayTotal += price;
                 
                 // Determine meal type for this record's timestamp
                 const hr = timestamp.substring(8, 10);
                 const min = timestamp.substring(10, 12);
-                const timeStr = `${hr}:${min}`;
-                const mealType = getMealTypeForTime(timeStr, state.settings.mealTimes);
-                spentTodayByMeal[mealType] += food.price;
+                const mealType = getEntryMealType(record);
+                if (mealType) spentTodayByMeal[mealType] += price;
             }
         }
     });
@@ -866,7 +928,7 @@ function renderHistory() {
     const groups = {}; // dateStr -> records array
     
     
-    state.eaten.forEach(([foodId, timestamp], index) => {
+    state.eaten.forEach(([foodId, timestamp, savedPrice, customName], index) => {
         const food = state.foodMap[foodId];
         const datePart = timestamp.substring(0, 8); // YYYYMMDD
         
@@ -891,10 +953,11 @@ function renderHistory() {
         groups[datePart].records.push({
             index, // Keep global index in state.eaten for removal
             foodId,
-            foodItem: food ? food.item : `Unknown Item (${foodId})`,
-            foodCategory: food ? food.category : 'N/A',
-            price: food ? food.price : 0,
-            time: timeStr
+            foodItem: getEatenRecordName(foodId, customName),
+            foodCategory: food ? food.category : (isCustomFoodId(foodId) ? 'Custom item' : 'N/A'),
+            price: getEatenRecordPrice(foodId, savedPrice),
+            time: isFoodCourtLedgerEntry(foodId) ? '—' : timeStr,
+            meal: getEntryMealLabel(state.eaten[index])
         });
     });
     
@@ -912,8 +975,8 @@ function renderHistory() {
                 <div class="history-item-left">
                     <span class="history-time">${rec.time}</span>
                     <div style="display:flex; flex-direction:column; gap:2px;">
-                        <span class="history-name">${rec.foodItem}</span>
-                        <span class="history-category">${rec.foodCategory}</span>
+                        <span class="history-name">${escapeHTML(rec.foodItem)}</span>
+                        <span class="history-category">${escapeHTML(rec.foodCategory)} · ${escapeHTML(rec.meal)}</span>
                     </div>
                 </div>
                 <div class="history-item-right">
@@ -1033,8 +1096,8 @@ function eatFood(foodId) {
     const localNow = new Date();
     const timestamp = getLocalTimestamp(localNow);
     
-    // Add to eating records: [foodID, YYYYMMDDHHMM]
-    state.eaten.push([foodId, timestamp]);
+    // Add to eating records: [foodID, YYYYMMDDHHMM, priceAtPurchase]
+    state.eaten.push([foodId, timestamp, food.price]);
     saveUserData();
     
     // Recalculate and re-render
@@ -1064,9 +1127,9 @@ function rateFood(foodId, stars) {
 function deleteHistoryEntry(index) {
     if (index < 0 || index >= state.eaten.length) return;
     
-    const [foodId] = state.eaten[index];
+    const [foodId, , , customName] = state.eaten[index];
     const food = state.foodMap[foodId];
-    const itemName = food ? food.item : 'Item';
+    const itemName = getEatenRecordName(foodId, customName);
     
     state.eaten.splice(index, 1);
     saveUserData();
@@ -1266,16 +1329,343 @@ function closeDetailsModal() {
  */
 let editingHistoryIndex = -1;
 
+function openCustomEntryModal() {
+    const now = new Date();
+    const localDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    document.getElementById('custom-entry-form').reset();
+    document.getElementById('custom-entry-date').value = localDate;
+    document.getElementById('custom-entry-time').value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    document.getElementById('custom-entry-modal').classList.add('open');
+    document.getElementById('custom-entry-name').focus();
+}
+
+function closeCustomEntryModal() {
+    document.getElementById('custom-entry-modal').classList.remove('open');
+}
+
+function saveCustomEntry(e) {
+    e.preventDefault();
+    const name = document.getElementById('custom-entry-name').value.trim();
+    const amount = Number(document.getElementById('custom-entry-amount').value);
+    const dateVal = document.getElementById('custom-entry-date').value;
+    const timeVal = document.getElementById('custom-entry-time').value;
+
+    if (!name || name.length > 100) {
+        showToast('Enter an item name up to 100 characters.', 'error');
+        return;
+    }
+    if (!Number.isFinite(amount) || amount <= 0) {
+        showToast('Amount must be greater than ₹0.', 'error');
+        return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateVal) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(timeVal)) {
+        showToast('Enter a valid date and time.', 'error');
+        return;
+    }
+
+    const [year, month, day] = dateVal.split('-').map(Number);
+    const checkDate = new Date(year, month - 1, day);
+    if (checkDate.getFullYear() !== year || checkDate.getMonth() !== month - 1 || checkDate.getDate() !== day) {
+        showToast('Enter a valid calendar date.', 'error');
+        return;
+    }
+    if (dateVal < state.settings.startDate || dateVal > state.settings.endDate) {
+        showToast('Custom purchases must be within the active budget period.', 'error');
+        return;
+    }
+
+    const [hour, minute] = timeVal.split(':');
+    const timestamp = `${String(year).padStart(4, '0')}${String(month).padStart(2, '0')}${String(day).padStart(2, '0')}${hour}${minute}`;
+    const foodId = `custom:${name.toLocaleLowerCase()}`;
+    state.eaten.push([foodId, timestamp, amount, name]);
+    saveUserData();
+    triggerFullUIRender();
+    closeCustomEntryModal();
+    showToast(`Logged custom purchase: ${name} (₹${amount.toFixed(2)})`, 'success');
+}
+
+let pendingBulkImport = null;
+
+function parseLedgerMoney(value) {
+    const cleaned = String(value || '').replace(/[₹,\s]/g, '').replace(/\(Dr\)/ig, '');
+    if (!cleaned) return 0;
+    if (!/^\d+(?:\.\d{1,2})?$/.test(cleaned)) return null;
+    return Math.round(Number(cleaned) * 100);
+}
+
+function parseLedgerDate(value) {
+    const match = String(value || '').trim().match(/^(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2}),\s*(\d{4})$/i);
+    if (!match) return null;
+    const months = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+    const year = Number(match[3]);
+    const month = months[match[1].toLowerCase()];
+    const day = Number(match[2]);
+    const check = new Date(year, month - 1, day);
+    if (check.getFullYear() !== year || check.getMonth() !== month - 1 || check.getDate() !== day) return null;
+    return `${String(year).padStart(4, '0')}${String(month).padStart(2, '0')}${String(day).padStart(2, '0')}`;
+}
+
+function parseFoodCourtLedger(text) {
+    const entries = [];
+    const errors = [];
+    const lines = text.split(/\r?\n/);
+
+    lines.forEach((line, index) => {
+        if (!/\bEx[\w-]+\b/i.test(line)) return;
+        const cells = line.includes('|')
+            ? line.split('|').map(cell => cell.trim()).filter((cell, i, all) => !(cell === '' && (i === 0 || i === all.length - 1)))
+            : line.split('\t').map(cell => cell.trim());
+        const voucher = cells[0] || '';
+        if (!/^Ex[\w-]+$/i.test(voucher) || cells.length < 6) {
+            errors.push(`Line ${index + 1}: couldn't read the voucher, date, credit, debit, and closing-balance columns.`);
+            return;
+        }
+
+        const date = parseLedgerDate(cells[1]);
+        const creditCents = parseLedgerMoney(cells[3]);
+        const debitCents = parseLedgerMoney(cells[4]);
+        const closingCents = parseLedgerMoney(cells[5]);
+        if (!date || creditCents === null || debitCents === null || closingCents === null || closingCents < 0) {
+            errors.push(`Line ${index + 1} (${voucher}): invalid date or amount in the report row.`);
+            return;
+        }
+        if (creditCents === 0 && debitCents === 0) {
+            errors.push(`Line ${index + 1} (${voucher}): row has no credit or debit amount.`);
+            return;
+        }
+        entries.push({ voucher, date, description: cells[2], creditCents, debitCents, closingCents, lineNumber: index + 1 });
+    });
+
+    if (entries.length === 0 && errors.length === 0) {
+        errors.push('No ledger rows found. Paste the report table, including its voucher rows.');
+    }
+
+    let calculatedClosingCents = null;
+    if (entries.length > 0) {
+        // The first pasted row establishes the chunk's opening checkpoint. Every following
+        // row must reconcile exactly, which also makes contiguous chunks independently verifiable.
+        calculatedClosingCents = entries[0].closingCents;
+        for (let i = 1; i < entries.length; i++) {
+            const row = entries[i];
+            calculatedClosingCents += row.creditCents - row.debitCents;
+            if (calculatedClosingCents !== row.closingCents) {
+                errors.push(`Line ${row.lineNumber} (${row.voucher}): calculated closing balance is ₹${(calculatedClosingCents / 100).toFixed(2)}, but the report shows ₹${(row.closingCents / 100).toFixed(2)}. Paste a smaller continuous chunk around this row to find the missing or incorrect line.`);
+            }
+        }
+    }
+
+    return { entries, errors, calculatedClosingCents };
+}
+
+function ledgerDuplicateKey(date, amountCents, closingCents) {
+    return `${date}|${amountCents}|${closingCents}`;
+}
+
+function inferLedgerMeals(entries) {
+    const averages = Object.fromEntries(MEAL_TYPES.map(meal => [meal, { totalCents: 0, count: 0 }]));
+    state.eaten.forEach(record => {
+        const meal = getEntryMealType(record);
+        if (!meal) return;
+        const cents = Math.round(getEatenRecordPrice(record[0], record[2]) * 100);
+        averages[meal].totalCents += cents;
+        averages[meal].count++;
+    });
+
+    const byDate = new Map();
+    entries.forEach(entry => {
+        if (!byDate.has(entry.date)) byDate.set(entry.date, []);
+        byDate.get(entry.date).push(entry);
+    });
+    const sparseDays = [];
+    const addSample = (meal, entry) => {
+        averages[meal].totalCents += entry.debitCents;
+        averages[meal].count++;
+        entry.meal = meal;
+    };
+    const chronological = rows => rows.slice().sort((a, b) => {
+        const aVoucher = Number(a.voucher.replace(/\D/g, ''));
+        const bVoucher = Number(b.voucher.replace(/\D/g, ''));
+        return aVoucher - bVoucher;
+    });
+
+    byDate.forEach(rows => {
+        const ordered = chronological(rows);
+        if (ordered.length < 3) {
+            sparseDays.push(ordered);
+            return;
+        }
+
+        let groups = ordered.map(entry => [entry]);
+        if (ordered.length === 3 || ordered.length === 4) {
+            groups = ordered.map(entry => [entry]);
+        } else {
+            while (groups.length > 4) {
+                let closestIndex = 0;
+                let closestGap = Infinity;
+                for (let i = 0; i < groups.length - 1; i++) {
+                    const left = Number(groups[i][groups[i].length - 1].voucher.replace(/\D/g, ''));
+                    const right = Number(groups[i + 1][0].voucher.replace(/\D/g, ''));
+                    const gap = right - left;
+                    if (gap < closestGap) {
+                        closestGap = gap;
+                        closestIndex = i;
+                    }
+                }
+                groups[closestIndex] = groups[closestIndex].concat(groups[closestIndex + 1]);
+                groups.splice(closestIndex + 1, 1);
+            }
+        }
+
+        const mealOrder = ordered.length === 3 ? ['breakfast', 'lunch', 'dinner'] : MEAL_TYPES;
+        groups.forEach((group, index) => {
+            const meal = mealOrder[index];
+            group.forEach(entry => addSample(meal, entry));
+        });
+    });
+
+    sparseDays.forEach(rows => rows.forEach(entry => {
+        const availableMeals = MEAL_TYPES.filter(meal => averages[meal].count > 0);
+        if (availableMeals.length === 0) {
+            entry.meal = null;
+            return;
+        }
+        const closestMeal = availableMeals.reduce((best, meal) => {
+            const average = averages[meal].totalCents / averages[meal].count;
+            const bestAverage = averages[best].totalCents / averages[best].count;
+            return Math.abs(entry.debitCents - average) < Math.abs(entry.debitCents - bestAverage) ? meal : best;
+        }, availableMeals[0]);
+        entry.meal = closestMeal;
+    }));
+
+    return entries;
+}
+
+function prepareBulkLedgerImport(text) {
+    const parsed = parseFoodCourtLedger(text);
+    if (parsed.errors.length > 0) return { ...parsed, duplicates: 0, newEntries: [] };
+
+    const debitEntries = parsed.entries.filter(entry => entry.debitCents > 0);
+    if (debitEntries.length === 0) {
+        return { ...parsed, errors: ['No debit/purchase rows found to import.'], duplicates: 0, newEntries: [] };
+    }
+    inferLedgerMeals(debitEntries);
+
+    const seen = new Set();
+    state.eaten.forEach(([foodId, timestamp, amount, , closingCents, , originalAmountCents, originalDate]) => {
+        if (!isCustomFoodId(foodId) || !Number.isFinite(closingCents)) return;
+        const matchDate = typeof originalDate === 'string' ? originalDate : timestamp.substring(0, 8);
+        const matchAmount = Number.isFinite(originalAmountCents) ? originalAmountCents : Math.round(amount * 100);
+        seen.add(ledgerDuplicateKey(matchDate, matchAmount, closingCents));
+    });
+
+    let duplicates = 0;
+    const newEntries = [];
+    debitEntries.forEach(entry => {
+        const key = ledgerDuplicateKey(entry.date, entry.debitCents, entry.closingCents);
+        if (seen.has(key)) {
+            duplicates++;
+            return;
+        }
+        seen.add(key);
+        newEntries.push([
+            `custom:food-court-ledger:${entry.voucher.toLowerCase()}`,
+            `${entry.date}0000`,
+            entry.debitCents / 100,
+            `${entry.description || 'Food Court Purchase'} · ${entry.voucher}`,
+            entry.closingCents,
+            entry.voucher,
+            entry.debitCents,
+            entry.date,
+            entry.meal || null
+        ]);
+    });
+
+    return { ...parsed, debitEntries, duplicates, newEntries };
+}
+
+function openBulkLedgerModal() {
+    document.getElementById('bulk-ledger-text').value = '';
+    document.getElementById('bulk-ledger-preview').textContent = '';
+    document.getElementById('bulk-ledger-preview').style.display = 'none';
+    document.getElementById('bulk-ledger-import-btn').style.display = 'none';
+    pendingBulkImport = null;
+    document.getElementById('bulk-ledger-modal').classList.add('open');
+    document.getElementById('bulk-ledger-text').focus();
+}
+
+function closeBulkLedgerModal() {
+    document.getElementById('bulk-ledger-modal').classList.remove('open');
+    pendingBulkImport = null;
+}
+
+function previewBulkLedgerImport() {
+    const text = document.getElementById('bulk-ledger-text').value;
+    const result = prepareBulkLedgerImport(text);
+    const preview = document.getElementById('bulk-ledger-preview');
+    const importButton = document.getElementById('bulk-ledger-import-btn');
+    preview.style.display = 'block';
+    importButton.style.display = 'none';
+    pendingBulkImport = null;
+
+    if (result.errors.length > 0) {
+        preview.textContent = `Import stopped. No rows were added.\n\n${result.errors.join('\n')}`;
+        return;
+    }
+
+    const totalDebitsCents = result.debitEntries.reduce((sum, entry) => sum + entry.debitCents, 0);
+    const mealSummary = MEAL_TYPES.map(meal => {
+        const count = result.debitEntries.filter(entry => entry.meal === meal).length;
+        return count ? `${meal}: ${count}` : null;
+    }).filter(Boolean);
+    const unassignedCount = result.debitEntries.filter(entry => !entry.meal).length;
+    if (unassignedCount > 0) mealSummary.push(`unassigned: ${unassignedCount}`);
+    const lines = [
+        `Validated ${result.entries.length} ledger rows.`,
+        `Purchase rows: ${result.debitEntries.length} (₹${(totalDebitsCents / 100).toFixed(2)} total)`,
+        `Already imported: ${result.duplicates}`,
+        `New purchases to add: ${result.newEntries.length}`,
+        `Inferred meals (editable in History): ${mealSummary.join(', ') || 'none'}`,
+        `Calculated final ledger balance: ₹${(result.calculatedClosingCents / 100).toFixed(2)} (matches the last report row).`,
+        '',
+        'The app budget settings will not change.'
+    ];
+    preview.textContent = lines.join('\n');
+
+    if (result.newEntries.length > 0) {
+        pendingBulkImport = result;
+        importButton.textContent = `Import ${result.newEntries.length} new purchase${result.newEntries.length === 1 ? '' : 's'}`;
+        importButton.style.display = 'inline-flex';
+    }
+}
+
+function commitBulkLedgerImport() {
+    if (!pendingBulkImport || pendingBulkImport.errors.length > 0) return;
+    const entries = pendingBulkImport.newEntries;
+    state.eaten.push(...entries);
+    saveUserData();
+    triggerFullUIRender();
+    closeBulkLedgerModal();
+    showToast(`Imported ${entries.length} food court purchase${entries.length === 1 ? '' : 's'}.`, 'success');
+}
+
 function openEditHistoryModal(index) {
     if (index < 0 || index >= state.eaten.length) return;
     editingHistoryIndex = index;
     
-    const [foodId, timestamp] = state.eaten[index];
+    const [foodId, timestamp, savedPrice, customName] = state.eaten[index];
     const food = state.foodMap[foodId];
     
-    document.getElementById('edit-modal-item-name').textContent = food ? food.item : `Unknown Item (${foodId})`;
-    document.getElementById('edit-modal-item-category').textContent = food ? food.category : 'N/A';
-    document.getElementById('edit-modal-item-price').textContent = `₹${food ? food.price.toFixed(2) : '0.00'}`;
+    const itemName = getEatenRecordName(foodId, customName);
+    const itemPrice = getEatenRecordPrice(foodId, savedPrice);
+    document.getElementById('edit-modal-item-name').textContent = itemName;
+    document.getElementById('edit-modal-item-category').textContent = food ? food.category : (isCustomFoodId(foodId) ? 'Custom item' : 'N/A');
+    document.getElementById('edit-modal-item-price').textContent = `₹${itemPrice.toFixed(2)}`;
+    document.getElementById('edit-record-name').value = itemName;
+    document.getElementById('edit-record-price').value = itemPrice.toFixed(2);
+    const mealOverride = getEntryMealOverride(state.eaten[index]);
+    document.getElementById('edit-record-meal').value = MEAL_TYPES.includes(mealOverride)
+        ? mealOverride
+        : (mealOverride === 'unassigned' || isFoodCourtLedgerEntry(foodId) ? 'unassigned' : 'auto');
     
     const yyyy = timestamp.substring(0, 4);
     const mm = timestamp.substring(4, 6);
@@ -1300,6 +1690,19 @@ function saveEditHistory(e) {
     
     const dateVal = document.getElementById('edit-record-date').value;
     const timeVal = document.getElementById('edit-record-time').value;
+    const nameVal = document.getElementById('edit-record-name').value.trim();
+    const priceText = document.getElementById('edit-record-price').value.trim();
+    const priceVal = Number(priceText);
+    const mealVal = document.getElementById('edit-record-meal').value;
+
+    if (!nameVal || nameVal.length > 100) {
+        showToast('Enter an item name up to 100 characters.', 'error');
+        return;
+    }
+    if (!priceText || !Number.isFinite(priceVal) || priceVal < 0) {
+        showToast('Price must be a valid amount greater than or equal to ₹0.', 'error');
+        return;
+    }
     
     if (!/^\d{4}-\d{2}-\d{2}$/.test(dateVal)) {
         showToast("Invalid date format.", "error");
@@ -1321,8 +1724,13 @@ function saveEditHistory(e) {
     const newTimestamp = `${String(y).padStart(4, '0')}${String(m).padStart(2, '0')}${String(d).padStart(2, '0')}${hh}${mm}`;
     
     // In-place replacement: keep original foodID, replace only timestamp
-    const [foodId] = state.eaten[editingHistoryIndex];
-    state.eaten[editingHistoryIndex] = [foodId, newTimestamp];
+    const [foodId, , , , ...metadata] = state.eaten[editingHistoryIndex];
+    if (isFoodCourtLedgerEntry(foodId)) {
+        metadata[4] = MEAL_TYPES.includes(mealVal) ? mealVal : null;
+    } else {
+        metadata[0] = mealVal === 'auto' ? null : mealVal;
+    }
+    state.eaten[editingHistoryIndex] = [foodId, newTimestamp, priceVal, nameVal, ...metadata];
     
     saveUserData();
     triggerFullUIRender();
@@ -1372,24 +1780,29 @@ function renderAnalytics() {
     const mealSpendMap = { breakfast: 0, lunch: 0, snack: 0, dinner: 0 };
     const categorySpendMap = {};
     const foodCountMap = {};
+    const foodSpendMap = {};
+    const foodNameMap = {};
 
-    state.eaten.forEach(([foodId, timestamp]) => {
+    state.eaten.forEach(record => {
+        const [foodId, timestamp, savedPrice, customName] = record;
         const food = state.foodMap[foodId];
-        const price = food ? food.price : 0;
+        const price = getEatenRecordPrice(foodId, savedPrice);
         totalSpent += price;
 
         const dateStr = timestamp.substring(0, 8);
         dailySpendMap[dateStr] = (dailySpendMap[dateStr] || 0) + price;
 
-        const hr = timestamp.substring(8, 10);
-        const min = timestamp.substring(10, 12);
-        const mealType = getMealTypeForTime(`${hr}:${min}`, state.settings.mealTimes);
-        mealSpendMap[mealType] = (mealSpendMap[mealType] || 0) + price;
+        const mealType = getEntryMealType(record);
+        if (mealType) {
+            mealSpendMap[mealType] = (mealSpendMap[mealType] || 0) + price;
+        }
 
-        const cat = food ? food.category : 'Other';
+        const cat = food ? food.category : (isCustomFoodId(foodId) ? 'Custom item' : 'Other');
         categorySpendMap[cat] = (categorySpendMap[cat] || 0) + price;
 
         foodCountMap[foodId] = (foodCountMap[foodId] || 0) + 1;
+        foodSpendMap[foodId] = (foodSpendMap[foodId] || 0) + price;
+        foodNameMap[foodId] = getEatenRecordName(foodId, customName);
     });
 
     const actualBalance = startingBalance - totalSpent;
@@ -1504,9 +1917,8 @@ function renderAnalytics() {
 
     let cumulativeSpend = 0;
     const cumulativeSpendByDate = {};
-    sortedEaten.forEach(([fId, ts]) => {
-        const food = state.foodMap[fId];
-        const p = food ? food.price : 0;
+    sortedEaten.forEach(([fId, ts, savedPrice]) => {
+        const p = getEatenRecordPrice(fId, savedPrice);
         const dStr = ts.substring(0, 8);
         cumulativeSpend += p;
         cumulativeSpendByDate[dStr] = cumulativeSpend;
@@ -1695,13 +2107,13 @@ function renderAnalytics() {
             let rowsHtml = sortedFreqIds.map((fId, idx) => {
                 const food = state.foodMap[fId];
                 const count = foodCountMap[fId];
-                const itemTotal = (food ? food.price : 0) * count;
+                const itemTotal = foodSpendMap[fId] || 0;
                 const rankClass = idx === 0 ? 'rank-1' : (idx === 1 ? 'rank-2' : (idx === 2 ? 'rank-3' : ''));
                 return `
                     <tr>
                         <td><span class="rank-pill ${rankClass}">${idx + 1}</span></td>
-                        <td style="font-weight:600;">${food ? food.item : fId}</td>
-                        <td><span class="food-category-badge">${food ? food.category : 'N/A'}</span></td>
+                        <td style="font-weight:600;">${escapeHTML(foodNameMap[fId] || food?.item || fId)}</td>
+                        <td><span class="food-category-badge">${escapeHTML(food ? food.category : (isCustomFoodId(fId) ? 'Custom item' : 'N/A'))}</span></td>
                         <td style="text-align:center; font-weight:700;">${count}×</td>
                         <td style="text-align:right; font-weight:700; color:var(--accent-light);">₹${itemTotal.toFixed(2)}</td>
                     </tr>
@@ -1749,11 +2161,11 @@ function renderAnalytics() {
                 return `
                     <tr>
                         <td><span class="rank-pill ${rankClass}">${idx + 1}</span></td>
-                        <td style="font-weight:600;">${food ? food.item : fav.fId}</td>
+                        <td style="font-weight:600;">${escapeHTML(food ? food.item : (foodNameMap[fav.fId] || fav.fId))}</td>
                         <td style="color:var(--warning); font-size:12px;">${stars}</td>
                         <td style="text-align:center;">${fav.count}×</td>
-                        <td><span class="food-category-badge">${food ? food.category : 'N/A'}</span></td>
-                        <td style="text-align:right; font-weight:700;">₹${food ? food.price.toFixed(2) : '0.00'}</td>
+                        <td><span class="food-category-badge">${escapeHTML(food ? food.category : (isCustomFoodId(fav.fId) ? 'Custom item' : 'N/A'))}</span></td>
+                        <td style="text-align:right; font-weight:700;">₹${fav.count ? (foodSpendMap[fav.fId] / fav.count).toFixed(2) : (food ? food.price.toFixed(2) : '0.00')}</td>
                     </tr>
                 `;
             }).join('');
@@ -1903,6 +2315,16 @@ function initEventBindings() {
             closeEditHistoryModal();
             return;
         }
+
+        if (e.target.id === 'custom-entry-modal') {
+            closeCustomEntryModal();
+            return;
+        }
+
+        if (e.target.id === 'bulk-ledger-modal') {
+            closeBulkLedgerModal();
+            return;
+        }
         
         // Delete history entry
         const delHistBtn = e.target.closest('.delete-history-btn');
@@ -1934,6 +2356,19 @@ function initEventBindings() {
     document.getElementById('settings-form').addEventListener('submit', saveSettings);
     document.getElementById('btn-reset-settings').addEventListener('click', resetSettingsToDefault);
     document.getElementById('btn-clear-data').addEventListener('click', clearAllUserData);
+
+    document.getElementById('add-custom-entry-btn').addEventListener('click', openCustomEntryModal);
+    document.getElementById('custom-entry-cancel-btn').addEventListener('click', closeCustomEntryModal);
+    document.getElementById('custom-entry-form').addEventListener('submit', saveCustomEntry);
+    document.getElementById('bulk-ledger-open-btn').addEventListener('click', openBulkLedgerModal);
+    document.getElementById('bulk-ledger-cancel-btn').addEventListener('click', closeBulkLedgerModal);
+    document.getElementById('bulk-ledger-preview-btn').addEventListener('click', previewBulkLedgerImport);
+    document.getElementById('bulk-ledger-import-btn').addEventListener('click', commitBulkLedgerImport);
+    document.getElementById('bulk-ledger-text').addEventListener('input', () => {
+        pendingBulkImport = null;
+        document.getElementById('bulk-ledger-preview').style.display = 'none';
+        document.getElementById('bulk-ledger-import-btn').style.display = 'none';
+    });
     
     // Live update of percentages while editing weights
     const weightsInputs = ['breakfast', 'lunch', 'snack', 'dinner'].map(m => document.getElementById(`set-weight-${m}`));
@@ -1988,6 +2423,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     // 2. Load Food CSV
     const dbSuccess = await loadFoodDatabase();
     if (dbSuccess) {
+        migrateEatenPrices();
         initEventBindings();
         triggerFullUIRender();
         
