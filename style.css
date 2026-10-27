@@ -1286,3 +1286,260 @@ header {
     color: #ffffff;
 }
 
+/* ==================================================
+   Responsive product UI refresh
+   ================================================== */
+:root {
+    color-scheme: dark;
+    --page-gutter: clamp(1rem, 3vw, 2.5rem);
+    --section-gap: clamp(1rem, 2vw, 1.5rem);
+    --surface-radius: 1.125rem;
+    --focus-ring: 0 0 0 3px color-mix(in srgb, var(--accent-primary) 35%, transparent);
+}
+
+:root[data-theme="light"] { color-scheme: light; }
+
+html { min-width: 320px; scroll-behavior: smooth; }
+body { min-width: 320px; font-size: 15px; }
+button, input, select, textarea { font: inherit; }
+button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible,
+textarea:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+img, svg, canvas { max-width: 100%; }
+
+.container {
+    width: min(100%, 1600px);
+    max-width: none;
+    padding: clamp(1rem, 2.8vw, 2.75rem) var(--page-gutter);
+    gap: var(--section-gap);
+}
+
+header {
+    position: relative;
+    align-items: center;
+    padding-bottom: 1rem;
+}
+.header-left { min-width: 0; }
+.header-left h1 { font-size: clamp(1.3rem, 2.4vw, 2rem); line-height: 1.15; }
+.header-left p { margin-top: .35rem; max-width: 56ch; font-size: clamp(.8rem, 1vw, .9rem); }
+.header-right { min-width: 0; }
+.tabs-navigation { max-width: 100%; }
+.tab-btn { min-height: 44px; white-space: nowrap; }
+.theme-toggle-btn { width: 44px; height: 44px; flex: 0 0 44px; }
+
+.glass-panel { min-width: 0; border-radius: var(--surface-radius); padding: clamp(1rem, 2vw, 1.4rem); }
+.dashboard-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: clamp(.6rem, 1.3vw, 1rem); }
+.metric-card { min-width: 0; gap: .5rem; }
+.metric-card .label { font-size: clamp(.65rem, .85vw, .75rem); letter-spacing: .04em; }
+.metric-card .val { font-size: clamp(1.1rem, 1.7vw, 1.55rem); line-height: 1.2; overflow-wrap: anywhere; }
+.metric-subtext { line-height: 1.4; }
+
+.current-meal-section { grid-template-columns: minmax(230px, .8fr) minmax(0, 1.5fr); gap: var(--section-gap); }
+.meal-status-header { gap: 1rem; flex-wrap: wrap; }
+.meal-status-header h3 { font-size: clamp(1rem, 1.4vw, 1.25rem); }
+.meal-pills { gap: .4rem; }
+.meal-pill { min-height: 40px; padding-inline: .8rem; }
+.meal-budgets-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .6rem; }
+.meal-grid-card { min-width: 0; padding: .7rem; }
+.meal-grid-card .item-row { gap: .35rem; font-variant-numeric: tabular-nums; }
+.meal-grid-card .item-row span:last-child { overflow-wrap: anywhere; text-align: right; }
+
+.recommendations-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); gap: .9rem; }
+.catalog-grid { grid-template-columns: repeat(auto-fill, minmax(min(100%, 230px), 1fr)); gap: .9rem; }
+.food-card { min-width: 0; padding: 1rem; }
+.food-name { height: auto; min-height: 2.4em; overflow-wrap: anywhere; }
+.food-category-badge { max-width: 60%; }
+.nutrition-details-row { gap: .35rem; flex-wrap: wrap; font-size: .7rem; }
+.card-footer { align-items: stretch; }
+.btn { min-height: 44px; padding: .65rem .9rem; }
+.btn-sm { min-height: 42px; padding: .55rem .7rem; }
+.btn-xs { min-height: 40px; padding: .45rem .65rem; }
+.input-field { min-height: 46px; border-radius: 10px; }
+textarea.input-field { min-height: 180px; }
+.filter-controls-row { grid-template-columns: minmax(0, 2fr) minmax(150px, .9fr) minmax(170px, 1fr); gap: .7rem; }
+
+.history-pane-content, .analytics-content { min-width: 0; gap: var(--section-gap); }
+.history-item { min-width: 0; gap: .8rem; padding: .8rem 1rem; }
+.history-item-left { min-width: 0; gap: .8rem; }
+.history-item-left > div { min-width: 0; }
+.history-name { display: block; overflow-wrap: anywhere; }
+.history-category { display: block; overflow-wrap: anywhere; }
+.history-item-right { flex: 0 0 auto; gap: .5rem; }
+.delete-history-btn { width: 44px; height: 44px; font-size: 1.5rem; }
+.edit-history-btn { flex: 0 0 auto; }
+.analytics-kpis { grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); }
+.analytics-charts-grid, .analytics-tables-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--section-gap); }
+.chart-card, .ranking-card { min-width: 0; }
+.chart-header h4 { font-size: clamp(.95rem, 1.25vw, 1.1rem); line-height: 1.35; }
+.chart-sub { line-height: 1.45; }
+.chart-container { min-width: 0; max-width: 100%; }
+.table-wrapper { max-width: 100%; overscroll-behavior-inline: contain; scrollbar-width: thin; }
+.analytics-table { min-width: 420px; }
+.analytics-table th, .analytics-table td { white-space: nowrap; }
+
+.settings-layout { grid-template-columns: minmax(0, 2fr) minmax(250px, .8fr); gap: var(--section-gap); }
+.settings-card { min-width: 0; }
+.settings-weights-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.weight-input-container input { width: 100%; max-width: 90px; }
+.settings-times-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.time-inputs { min-width: 0; }
+.time-inputs .input-field { min-width: 0; }
+.modal-overlay { padding: 1rem; overflow-y: auto; overscroll-behavior: contain; }
+.modal-container { width: min(100%, 560px); max-width: min(560px, 100%); max-height: min(90dvh, 900px); min-width: 0; }
+.modal-body { min-width: 0; padding: clamp(1rem, 3vw, 1.5rem); }
+.modal-body form, .modal-body .form-group { min-width: 0; }
+.modal-title-row h3 { font-size: clamp(1.05rem, 4vw, 1.25rem); }
+.modal-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.toast-container { width: min(420px, calc(100vw - 2rem)); right: 1rem; bottom: max(1rem, env(safe-area-inset-bottom)); }
+.toast { max-width: 100%; overflow-wrap: anywhere; }
+
+@media (min-width: 1600px) {
+    .container { padding-inline: clamp(2.75rem, 5vw, 5rem); }
+    .dashboard-grid { gap: 1.25rem; }
+    .catalog-grid { grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 1.1rem; }
+}
+
+@media (max-width: 1024px) {
+    .container { padding-inline: clamp(1rem, 3vw, 1.75rem); }
+    .current-meal-section { grid-template-columns: minmax(0, 1fr); }
+    .settings-layout { grid-template-columns: minmax(0, 1fr); }
+    .settings-layout .danger-zone { order: 2; }
+    .filter-controls-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    .search-input-wrapper { grid-column: 1 / -1; }
+    .analytics-charts-grid, .analytics-tables-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (max-width: 639px) {
+    html { scroll-padding-bottom: 6.5rem; }
+    body { padding-bottom: calc(5.2rem + env(safe-area-inset-bottom)); }
+    .container { padding: 1rem 1rem 1.25rem; gap: 1rem; }
+    header { align-items: flex-start; padding-bottom: .75rem; }
+    .header-left { padding-right: 3.5rem; }
+    .header-left p { max-width: 38ch; }
+    .header-right { display: contents; }
+    .theme-toggle-btn { position: absolute; top: 0; right: 0; }
+    .tabs-navigation {
+        position: fixed;
+        z-index: 900;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        max-width: none;
+        justify-content: space-around;
+        gap: .1rem;
+        padding: .4rem .4rem calc(.4rem + env(safe-area-inset-bottom));
+        border: 0;
+        border-top: 1px solid var(--border-color);
+        border-radius: 0;
+        background: color-mix(in srgb, var(--bg-secondary) 94%, transparent);
+        backdrop-filter: blur(18px);
+        box-shadow: 0 -8px 30px rgba(0, 0, 0, .16);
+    }
+    .tab-btn {
+        flex: 1 1 0;
+        min-width: 0;
+        min-height: 48px;
+        padding: .35rem .2rem;
+        flex-direction: column;
+        justify-content: center;
+        gap: .15rem;
+        border-radius: .65rem;
+        font-size: .62rem;
+        line-height: 1.1;
+        white-space: normal;
+        text-align: center;
+    }
+    .tab-btn svg { width: 18px; height: 18px; flex: 0 0 auto; }
+    .dashboard-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
+    .dashboard-grid > :last-child:nth-child(odd) { grid-column: 1 / -1; }
+    .metric-card { padding: .9rem; gap: .35rem; }
+    .metric-card .label { font-size: .65rem; line-height: 1.3; }
+    .metric-card .val { font-size: clamp(1.05rem, 5vw, 1.35rem); }
+    .status-banner { padding: .8rem .9rem; font-size: .85rem; overflow-wrap: anywhere; }
+    .meal-status-header { flex-direction: column; align-items: stretch; }
+    .meal-pills { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .meal-pill { min-width: 0; padding: .5rem .25rem; font-size: .68rem; }
+    .meal-budget-numbers { margin: .75rem 0 0; gap: .7rem; }
+    .meal-budgets-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .recommendations-grid, .catalog-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .65rem; }
+    .food-card { padding: .8rem; gap: .65rem; border-radius: .9rem; }
+    .food-card-header { align-items: flex-start; }
+    .food-category-badge { max-width: 62%; font-size: .62rem; }
+    .food-price { font-size: .9rem; white-space: nowrap; }
+    .food-name { font-size: .88rem; line-height: 1.35; min-height: 2.7em; }
+    .food-card-meta { font-size: .66rem; }
+    .nutrition-score-row { font-size: .68rem; }
+    .nutrition-details-row { padding: .4rem; font-size: .61rem; }
+    .star-rating .star { font-size: 1.2rem; }
+    .card-footer { gap: .4rem; flex-direction: column; }
+    .card-footer .btn { width: 100%; flex: 1 1 auto; min-height: 42px; }
+    .filter-controls-row { grid-template-columns: minmax(0, 1fr); padding: .7rem; }
+    .search-input-wrapper { grid-column: auto; }
+    .catalog-section-header h3, .recommendations-container h3 { font-size: 1rem; }
+    .history-pane-content { gap: .8rem; }
+    .history-pane-content > .glass-panel:first-child { align-items: stretch !important; gap: .8rem !important; }
+    .history-pane-content > .glass-panel:first-child > div:last-child { display: grid !important; grid-template-columns: 1fr 1fr; gap: .5rem !important; }
+    .history-pane-content > .glass-panel:first-child > div:last-child > div { display: none; }
+    .history-pane-content > .glass-panel:first-child .btn { width: 100%; min-height: 46px; font-size: .72rem; }
+    .history-item { align-items: flex-start; padding: .75rem; gap: .4rem; }
+    .history-item-left { align-items: flex-start; flex: 1 1 auto; gap: .5rem; }
+    .history-time { flex: 0 0 auto; font-size: .68rem; }
+    .history-name { font-size: .85rem; }
+    .history-category { font-size: .68rem; }
+    .history-item-right { display: grid; grid-template-columns: auto 44px; justify-items: end; gap: .2rem; }
+    .history-price { grid-column: 1 / -1; font-size: .82rem; }
+    .history-item-right .edit-history-btn { grid-column: 1; grid-row: 2; padding-inline: .55rem; font-size: .66rem; }
+    .history-item-right .delete-history-btn { grid-column: 2; grid-row: 2; }
+    .analytics-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .analytics-kpis .metric-card { padding: .8rem; }
+    .analytics-kpis .metric-card .val { font-size: 1.15rem; }
+    .analytics-content { gap: .8rem; }
+    .chart-card, .ranking-card { padding: .9rem; }
+    .chart-container { height: 250px !important; }
+    .full-width-chart:first-child .chart-container { height: 280px !important; }
+    .analytics-tables-grid { gap: .8rem; }
+    .settings-card { gap: 1rem; }
+    .form-group-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem; }
+    .settings-weights-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .settings-times-grid { grid-template-columns: minmax(0, 1fr); }
+    .time-inputs { gap: .4rem; }
+    .time-inputs .input-field { padding-inline: .45rem; font-size: .8rem; }
+    #settings-form > div:last-child { flex-direction: column !important; }
+    #settings-form > div:last-child .btn { width: 100%; flex: auto !important; }
+    .modal-overlay { align-items: flex-end; padding: 0; }
+    .modal-container {
+        width: 100%;
+        max-width: none;
+        max-height: min(92dvh, 900px);
+        border-radius: 1.25rem 1.25rem 0 0;
+        border-bottom: 0;
+        padding-bottom: env(safe-area-inset-bottom);
+        transform: translateY(1rem);
+    }
+    .modal-overlay.open .modal-container { transform: translateY(0); }
+    .modal-body { padding: 1.1rem 1rem 1rem; }
+    .modal-footer { padding: .8rem 1rem calc(.8rem + env(safe-area-inset-bottom)); }
+    .modal-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .modal-body form > div:last-child { flex-direction: column-reverse !important; }
+    .modal-body form > div:last-child .btn { width: 100%; }
+    #edit-history-item-preview { overflow-wrap: anywhere; }
+    #bulk-ledger-preview { overflow-wrap: anywhere; max-height: 34vh; overflow-y: auto; }
+    .toast-container { left: 1rem; right: 1rem; bottom: calc(5.6rem + env(safe-area-inset-bottom)); width: auto; }
+}
+
+@media (max-width: 380px) {
+    .container { padding-inline: .75rem; }
+    .glass-panel { padding: .8rem; }
+    .recommendations-grid, .catalog-grid { grid-template-columns: minmax(0, 1fr); }
+    .food-card { display: grid; grid-template-columns: minmax(0, 1fr) auto; }
+    .food-card-header, .food-name, .food-card-meta, .nutrition-score-row,
+    .nutrition-details-row, .rating-row, .card-footer { grid-column: 1 / -1; }
+    .nutrition-details-row { justify-content: flex-start; }
+    .meal-pills { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .form-group-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+}
