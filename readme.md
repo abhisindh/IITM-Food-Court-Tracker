@@ -1,11 +1,15 @@
 # IITM Food Court Tracker
 
-A lightweight, privacy-first web application for tracking food-court spending, eating habits, nutrition, and meal-wise budgeting at IIT Madras.
+A responsive, local-first web application for tracking food-court spending, eating habits, nutrition, and meal-wise budgeting at IIT Madras.
 
 The project combines a local food database with a client-side recommendation engine and a reproducible budgeting system. It is designed as a practical example of building a complete data-driven web application using only HTML, CSS, vanilla JavaScript, CSV, and browser `localStorage`—without a backend or external database.
 
-> **Status:** MVP
+> **Status:** Active
 > **Stack:** HTML5 · CSS3 · Vanilla JavaScript · CSV · Web Storage API
+
+## View the App
+
+[Open IITM Food Court Tracker](https://abhisindh.github.io/IITM-Food-Court-Tracker/)
 
 ---
 
@@ -13,14 +17,19 @@ The project combines a local food database with a client-side recommendation eng
 
 Managing a fixed food budget across breakfast, lunch, snacks, and dinner is not just a budgeting problem. The user also needs to decide what to eat, balance nutrition with cost, learn from previous food choices, and avoid repeatedly choosing the same options.
 
-IITM Food Court Tracker addresses these problems through four connected components:
+IITM Food Court Tracker addresses these needs through a set of connected features:
 
-* **Budget engine** — continuously calculates the remaining budget and daily/meal-wise spending allowance.
+* **Budget engine** — calculates the remaining balance, adaptive daily allowance, and meal budgets that rebalance as the day progresses.
 * **Food database** — stores food, price, serving size, and approximate nutritional information in CSV.
 * **Recommendation engine** — ranks foods using nutrition, meal suitability, personal ratings, and controlled exploration.
-* **Eating history** — records food and custom purchases with their timestamp and purchase-time amount.
+* **Eating history** — keeps each purchase as its own record and groups the display by date and meal, with meal totals and editable records.
+* **Analytics** — compares expected and actual balance, plots daily spending against an adaptive target, and summarizes spending by meal and catalog category.
+* **Ledger import** — validates pasted hostel ledger reports, skips duplicates, infers meals, and applies authoritative dates and balance from the report.
+* **Responsive layout** — adapts navigation, cards, charts, forms, and history for mobile, tablet, and desktop screens.
 
 The application is entirely client-side. User data stays in the browser.
+
+The app is hosted on GitHub Pages. Chart.js is loaded from jsDelivr; the tracker has no application backend.
 
 ---
 
@@ -36,11 +45,13 @@ Default configuration:
 | ---------------- | ---------: |
 | Start date       | 2026-09-01 |
 | End date         | 2026-10-10 |
-| Starting balance |     ₹6,510 |
+| Starting balance |     ₹5,772 |
 | Breakfast weight |         40 |
 | Lunch weight     |         70 |
 | Snack weight     |         20 |
 | Dinner weight    |         70 |
+
+These are fallback values for a new browser profile. Saved localStorage settings are loaded first, and missing fields are filled from these defaults. Ledger dates and opening balance take precedence when a report is imported and applied.
 
 The meal weights are normalized automatically.
 
@@ -60,7 +71,7 @@ Days Remaining Including Today
 
 Meal allowances begin using the configured weights. When a meal window ends, its actual spend is settled and any unused allowance is redistributed across the remaining meals in proportion to their weights. Overspending reduces the allowance available to later meals. Any funds left after the final meal remain in the balance and are included in the next day's calculation.
 
-The Eating History tab also supports bulk import from a pasted Student Food Court Purchase Report. The importer validates consecutive closing balances, adds debit rows, and skips previously imported rows matching date, amount, and closing balance. It can fill missing start/end dates from the Dining Period and a missing starting balance from a matching opening credit row; saved settings are preserved. Meal estimates use the daily purchase count and voucher-number gaps; days with fewer than three purchases use historical average spend per meal when available. Estimates can be changed in the History editor. Because the report has no times, imported entries retain date-only timestamps.
+The Eating History tab supports bulk import from pasted report text, including Markdown tables. The importer checks consecutive closing balances, adds debit rows as individual purchases, and skips duplicates matching date, amount, and closing balance. The Dining Period dates and a matching opening credit are authoritative and replace conflicting saved settings when the preview is applied. If the chunk begins with a debit and has no opening credit, its first closing balance plus the debit estimates the balance at the start of that chunk; the preview marks this as uncertain because it may not be the full-period opening balance. Meal estimates use daily purchase counts and voucher-number gaps. Days with fewer than three purchases use historical meal averages when available. Estimates can be changed in History. Since the report has no times, imported purchases retain date-only timestamps.
 
 Only actual purchases reduce the balance. Meal budgets are recommendations and are never deducted automatically.
 
@@ -129,13 +140,14 @@ Custom purchases use the same record with a custom item ID and a fourth field fo
 
 The application retrieves the food name, nutrition, and category from the CSV by default. The purchase-time price is stored with the eating record so later CSV price changes do not alter past spending. Editing a history record can save a name override and a corrected price for that purchase.
 
-For CSV-backed foods, an eating record does **not** store:
+For CSV-backed foods, an eating record does **not** duplicate:
 
 ```text
-category
-nutrition
-meal type
+category metadata
+nutrition metadata
 ```
+
+The meal is normally derived from the timestamp and configured meal hours. An optional meal override is stored when a record is manually assigned to a different meal.
 
 Custom purchase records store the entered item name because those items do not have a matching CSV row. The optional fourth field also preserves edited name overrides.
 
@@ -241,19 +253,31 @@ Default meal windows:
 
 The gaps between these windows are assigned deterministically so that every time of day has a predictable meal classification.
 
-Meal timings are configurable through the Admin/Settings panel.
+Meal timings are configurable through Admin & Settings. Regular purchases are assigned from their timestamps. Ledger imports infer meals from daily purchase counts and voucher-number gaps; sparse days use historical average spend by meal when available. Any meal assignment can be changed in the History editor.
 
-The actual timestamp is stored rather than the meal name. This means historical records remain valid even if meal boundaries are changed later.
+History keeps purchases separate for spending and analytics. Its view groups records by date and meal, showing the items, count, and combined meal total together.
+
+---
+
+## Analytics
+
+The Analytics tab includes spending and balance summaries, plus:
+
+* **Balance Over Time:** expected and actual balance, with a one-week date range and a vertical scale fitted to the relevant balance values.
+* **Daily Spending Over Time:** daily totals and an adaptive target line. The target starts from the period's saved starting balance, divides the remaining balance across remaining budget days, and recalculates after each day's actual spending.
+* **Spending by Meal** and **Spending by Food Category.** Custom purchases are excluded from the category chart so they do not skew catalog categories.
+* **Most Frequently Eaten Foods** and **Favorite Foods.** Custom entries are excluded from these rankings.
+
+Custom purchases still count toward total spending, current balance, daily spending, and meal spending.
 
 ---
 
 ## Financial Calculation
 
-The financial state is derived rather than stored.
+The financial state is derived from saved settings and eating history rather than stored as a separate total.
 
 ```text
-Current Balance =
-Starting Balance − Total Cost of Eaten Items
+Current Balance = Starting Balance − Total Cost of Eaten Items
 ```
 
 For every eating record, the saved purchase-time price is added to total spending.
@@ -264,7 +288,9 @@ This means the application can reconstruct the complete financial state from:
 Settings + Eating History
 ```
 
-Calculated values such as current balance, daily budget, and meal budgets are intentionally not persisted.
+Today's budget is based on the balance at the start of the day divided by days remaining, including today. The adaptive target in Analytics starts with the saved starting balance; after each day, it subtracts that day's actual spending and divides what remains across the remaining period days. Meal budgets use configured weights. As a meal window ends, unused funds are redistributed to the meals left that day; overspending reduces those later allowances.
+
+Calculated values such as current balance, daily budget, and meal budgets are not persisted.
 
 This reduces the possibility of stale or inconsistent financial state.
 
@@ -286,7 +312,7 @@ contains:
 40 days
 ```
 
-The application uses:
+Daily budgets use:
 
 ```text
 Days Remaining Including Today
@@ -357,6 +383,14 @@ An eating action:
 * Updates meal budget status
 * Updates the UI immediately
 
+### Add a Custom Purchase
+
+Use **Add custom amount** to record a purchase missing from the food catalog. Enter its name, amount, date, and time. Custom purchases affect spending and budget calculations but are excluded from catalog food rankings and food-category totals.
+
+### Edit Eating History
+
+Each purchase remains a separate record. Edit its name, price, date, time, or meal assignment. History groups items by date and meal and shows a combined amount for each meal.
+
 ---
 
 ## Storage Architecture
@@ -372,7 +406,7 @@ Conceptually:
   settings: {
     startDate: "2026-09-01",
     endDate: "2026-10-10",
-    startingBalance: 6510,
+    startingBalance: 5772,
     mealWeights: {
       breakfast: 40,
       lunch: 70,
@@ -400,6 +434,8 @@ Conceptually:
 ```
 
 No account or server is required.
+
+`settingsProvided` tracks whether the period dates and starting balance were explicitly saved or filled from fallback defaults. Fallback settings are stored in localStorage during initialization. The ledger import can replace these values when you apply a validated report.
 
 ---
 
@@ -457,9 +493,8 @@ There is:
 * No backend
 * No cloud database
 * No external analytics requirement
-* No external API requirement
 
-Eating history and ratings therefore remain local to the browser unless the user deliberately exports or copies the data.
+Chart.js is downloaded from jsDelivr to render analytics. Eating history, ratings, and settings remain in browser localStorage and are not sent to the app server.
 
 ---
 
@@ -505,7 +540,7 @@ CLEAR
 
 ## Validation and Error Handling
 
-The MVP validates:
+The app validates:
 
 * Date ranges
 * Starting balance
@@ -523,97 +558,6 @@ If the CSV cannot be loaded, the application displays a clear error instead of s
 
 ---
 
-## Testing Strategy
-
-The project includes a lightweight logic test runner:
-
-```text
-verify_logic.js
-```
-
-The tests focus on business logic rather than visual rendering.
-
-Important automated tests include:
-
-### CSV parser
-
-Verify that:
-
-* quoted values work
-* commas inside quoted fields work
-* numeric fields are parsed correctly
-* IDs are unique
-* invalid rows are handled safely
-
-### Date engine
-
-Verify:
-
-```text
-2026-09-01 → 2026-10-10 = 40 days
-same start/end date = 1 day
-final day = 1 day remaining
-after end date = period ended
-```
-
-### Time engine
-
-Verify boundary cases including:
-
-```text
-07:00
-10:00
-11:30
-12:00
-14:30
-15:00
-16:30
-17:30
-19:00
-21:30
-23:59
-00:01
-```
-
-### Financial engine
-
-Verify:
-
-```text
-No purchases
-One purchase
-Repeated purchase
-Multiple different foods
-Overspending
-Zero balance
-Negative balance
-```
-
-### Persistence
-
-Verify that data survives:
-
-```text
-Eat → Refresh
-Rate → Refresh
-Change Settings → Refresh
-Clear Data → Refresh
-```
-
-### Recommendation engine
-
-Test invariants rather than exact randomized rankings.
-
-Verify that:
-
-* ratings influence ranking
-* unrated foods receive exploration treatment
-* meal suitability influences ranking
-* invalid nutrition does not produce `NaN`
-* randomness cannot overwhelm large score differences
-
----
-
 ## Running Locally
 
 Because the application loads the CSV using `fetch()`, it should be served through a local HTTP server rather than opened directly with `file://`.
@@ -628,6 +572,8 @@ Then open the displayed local address in a browser.
 
 The project requires no build step.
 
+The hosted application is available at [abhisindh.github.io/IITM-Food-Court-Tracker](https://abhisindh.github.io/IITM-Food-Court-Tracker/).
+
 ---
 
 ## Project Structure
@@ -638,9 +584,8 @@ iitm-food-court-tracker/
 ├── index.html
 ├── style.css
 ├── app.js
-├── verify_logic.js
 ├── IITM_Food_Court_Nutrition_Estimates.csv
-└── README.md
+└── readme.md
 ```
 
 ---
@@ -655,6 +600,7 @@ This project demonstrates several practical software engineering concepts in a s
 * Deterministic financial calculations
 * Date/time handling
 * Local persistence
+* Responsive mobile-first layout
 * Stable primary-key design
 * Data normalization
 * Recommendation systems
@@ -663,8 +609,8 @@ This project demonstrates several practical software engineering concepts in a s
 * Input validation
 * Schema versioning
 * Defensive programming
-* Automated business-logic testing
-* Responsive UI design
+* Ledger reconciliation and duplicate detection
+* Historical meal inference
 
 The project intentionally avoids a framework to keep the underlying architecture visible and understandable.
 
@@ -674,15 +620,9 @@ The project intentionally avoids a framework to keep the underlying architecture
 
 Possible extensions include:
 
-* Export/import of eating history
-* Weekly and monthly spending analytics
+* Export/import of full localStorage data
 * Nutrition trends over time
-* More sophisticated recommendation algorithms
-* Contextual bandit-based recommendations
-* Price-change/version tracking
 * Food availability tracking
-* Visualization of spending by meal
-* Visualization of protein/fibre intake
 * Offline-first Progressive Web App support
 * Automated CSV update pipeline
 * Historical food-price snapshots

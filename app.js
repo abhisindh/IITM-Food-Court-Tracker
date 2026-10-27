@@ -1513,12 +1513,12 @@ function inferLedgerSettings(text, entries) {
         const endCompact = parseLedgerDate(periodMatch[2]);
         if (startCompact && endCompact && startCompact <= endCompact) {
             periodStart = ledgerDateToISO(startCompact);
-            if (state.settingsProvided.startDate !== true) suggestions.startDate = periodStart;
-            if (state.settingsProvided.endDate !== true) suggestions.endDate = ledgerDateToISO(endCompact);
+            suggestions.startDate = { value: periodStart, source: 'Dining Period' };
+            suggestions.endDate = { value: ledgerDateToISO(endCompact), source: 'Dining Period' };
         }
     }
 
-    if (state.settingsProvided.startingBalance !== true && periodStart && entries.length > 0) {
+    if (periodStart && entries.length > 0) {
         const firstEntry = entries[0];
         const daysBeforePeriod = Math.round((
             parseLocalDate(periodStart).getTime() - parseLocalDate(ledgerDateToISO(firstEntry.date)).getTime()
@@ -1527,7 +1527,22 @@ function inferLedgerSettings(text, entries) {
             firstEntry.debitCents === 0 &&
             firstEntry.closingCents === firstEntry.creditCents &&
             daysBeforePeriod >= 0 && daysBeforePeriod <= 1;
-        if (isOpeningCredit) suggestions.startingBalance = firstEntry.creditCents / 100;
+        if (isOpeningCredit) {
+            suggestions.startingBalance = {
+                value: firstEntry.creditCents / 100,
+                source: 'opening credit row',
+                confidence: 'confirmed'
+            };
+        } else if (firstEntry.debitCents > 0) {
+            const chunkOpeningCents = firstEntry.closingCents - firstEntry.creditCents + firstEntry.debitCents;
+            if (chunkOpeningCents >= 0) {
+                suggestions.startingBalance = {
+                    value: chunkOpeningCents / 100,
+                    source: 'first row in pasted chunk',
+                    confidence: 'estimate'
+                };
+            }
+        }
     }
 
     return suggestions;
@@ -1757,22 +1772,39 @@ function previewBulkLedgerImport() {
         `Calculated final ledger balance: ₹${(result.calculatedClosingCents / 100).toFixed(2)} (matches the last report row).`,
         ''
     ];
-    const inferredSettings = [];
-    if (result.settingsSuggestions.startDate) inferredSettings.push(`Start date: ${result.settingsSuggestions.startDate} (Dining Period)`);
-    if (result.settingsSuggestions.endDate) inferredSettings.push(`End date: ${result.settingsSuggestions.endDate} (Dining Period)`);
-    if (Number.isFinite(result.settingsSuggestions.startingBalance)) {
-        inferredSettings.push(`Starting balance: ₹${result.settingsSuggestions.startingBalance.toFixed(2)} (opening credit row)`);
+    const settingLabels = { startDate: 'Start date', endDate: 'End date', startingBalance: 'Starting balance' };
+    const inferredSettings = Object.entries(result.settingsSuggestions).map(([key, suggestion]) => {
+        const value = suggestion.value;
+        const existingValue = state.settings[key];
+        const sameValue = existingValue === value;
+        const existingText = key === 'startingBalance' ? `₹${Number(existingValue).toFixed(2)}` : existingValue;
+        const ledgerText = key === 'startingBalance' ? `₹${Number(value).toFixed(2)}` : value;
+        const decision = sameValue
+            ? `already matches saved value ${existingText}`
+            : `saved ${existingText} → ledger ${ledgerText}; ledger will replace it`;
+        const confidence = suggestion.confidence === 'estimate'
+            ? '; estimate for the pasted chunk, may not be the period opening balance'
+            : '';
+        return `${settingLabels[key]}: ${ledgerText} (${suggestion.source}${confidence}; ${decision})`;
+    });
+    if (inferredSettings.length > 0) {
+        lines.push(`Ledger settings (authoritative):\n${inferredSettings.join('\n')}`);
+        if (!result.settingsSuggestions.startingBalance) {
+            lines.push('Starting balance: no opening credit or usable first-row balance was found.');
+        }
+    } else {
+        lines.push('No dining period or opening balance could be read from this report.');
     }
-    lines.push(inferredSettings.length > 0
-        ? `Missing settings to fill from this report:\n${inferredSettings.join('\n')}`
-        : 'No missing budget settings could be inferred. Existing saved settings will be kept.');
     preview.textContent = lines.join('\n');
 
-    if (result.newEntries.length > 0 || inferredSettings.length > 0) {
+    const settingsToChange = Object.entries(result.settingsSuggestions).filter(([key, suggestion]) =>
+        state.settings[key] !== suggestion.value || state.settingsProvided[key] !== true
+    ).length;
+    if (result.newEntries.length > 0 || settingsToChange > 0) {
         pendingBulkImport = result;
         const actions = [];
         if (result.newEntries.length > 0) actions.push(`Import ${result.newEntries.length} purchase${result.newEntries.length === 1 ? '' : 's'}`);
-        if (inferredSettings.length > 0) actions.push(`save ${inferredSettings.length} setting${inferredSettings.length === 1 ? '' : 's'}`);
+        if (settingsToChange > 0) actions.push(`apply ${settingsToChange} ledger setting${settingsToChange === 1 ? '' : 's'}`);
         importButton.textContent = actions.join(' & ');
         importButton.style.display = 'inline-flex';
     }
@@ -1783,18 +1815,18 @@ function commitBulkLedgerImport() {
     const entries = pendingBulkImport.newEntries;
     state.eaten.push(...entries);
     const appliedSettings = [];
-    Object.entries(pendingBulkImport.settingsSuggestions || {}).forEach(([key, value]) => {
-        if (state.settingsProvided[key] === true) return;
-        state.settings[key] = value;
+    Object.entries(pendingBulkImport.settingsSuggestions || {}).forEach(([key, suggestion]) => {
+        const changed = state.settings[key] !== suggestion.value || state.settingsProvided[key] !== true;
+        state.settings[key] = suggestion.value;
         state.settingsProvided[key] = true;
-        appliedSettings.push(key);
+        if (changed) appliedSettings.push(key);
     });
     saveUserData();
     triggerFullUIRender();
     closeBulkLedgerModal();
     const messages = [];
     if (entries.length > 0) messages.push(`Imported ${entries.length} food court purchase${entries.length === 1 ? '' : 's'}`);
-    if (appliedSettings.length > 0) messages.push(`filled ${appliedSettings.length} missing budget setting${appliedSettings.length === 1 ? '' : 's'}`);
+    if (appliedSettings.length > 0) messages.push(`applied ${appliedSettings.length} authoritative ledger setting${appliedSettings.length === 1 ? '' : 's'}`);
     showToast(`${messages.join(' and ')}.`, 'success');
 }
 
