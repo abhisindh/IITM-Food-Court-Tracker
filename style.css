@@ -1191,6 +1191,23 @@ header {
     gap: 2px;
 }
 
+.chart-range-control { display: flex; flex-wrap: wrap; gap: .35rem; margin: .35rem 0; }
+.chart-range-control button {
+    min-height: 44px; padding: .35rem .7rem; border: 1px solid var(--border-color);
+    border-radius: 999px; background: transparent; color: var(--text-secondary);
+    font: inherit; font-size: .75rem; cursor: pointer;
+}
+.chart-range-control button:hover, .chart-range-control button.active {
+    border-color: var(--accent-color, #6366f1); background: rgba(99, 102, 241, .14); color: var(--text-primary);
+}
+.chart-range-control button:focus-visible { outline: 2px solid #6366f1; outline-offset: 2px; }
+.target-change-legend { display: flex; flex-wrap: wrap; gap: .75rem; color: var(--text-secondary); font-size: .72rem; }
+.target-change-legend span { display: inline-flex; align-items: center; gap: .35rem; }
+.target-marker { width: .55rem; height: .55rem; border-radius: 50%; display: inline-block; }
+.target-marker-up { background: #22c55e; }
+.target-marker-down { background: #ef4444; }
+.target-marker-same { background: #f59e0b; }
+
 .chart-header h4 {
     font-size: 16px;
     font-weight: 600;

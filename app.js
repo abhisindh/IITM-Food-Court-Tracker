@@ -231,6 +231,10 @@ function isCustomFoodId(foodId) {
     return typeof foodId === 'string' && foodId.startsWith('custom:');
 }
 
+function isCreditEntry(record) {
+    return Array.isArray(record) && typeof record[0] === 'string' && record[0].startsWith('custom:credit:');
+}
+
 function isFoodCourtLedgerEntry(foodId) {
     return foodId === 'custom:food-court-ledger' || (typeof foodId === 'string' && foodId.startsWith('custom:food-court-ledger:'));
 }
@@ -465,12 +469,18 @@ function calculateFinance() {
     
     // Calculate total spent using saved purchase prices, with a CSV fallback for legacy records.
     let totalSpent = 0;
+    let totalCredits = 0;
     const todayStr = getLocalDateString(today);
     let spentTodayTotal = 0;
     const spentTodayByMeal = { breakfast: 0, lunch: 0, snack: 0, dinner: 0 };
     
     state.eaten.forEach(record => {
         const [foodId, timestamp, savedPrice] = record;
+        if (isCreditEntry(record)) {
+            const credit = Math.max(0, Number(savedPrice) || 0);
+            totalCredits += credit;
+            return;
+        }
         const food = state.foodMap[foodId];
         const price = getEatenRecordPrice(foodId, savedPrice);
         if (food || price > 0) {
@@ -490,7 +500,7 @@ function calculateFinance() {
     });
     
     // Current balance
-    const currentBalance = state.settings.startingBalance - totalSpent;
+    const currentBalance = state.settings.startingBalance - totalSpent + totalCredits;
     
     // Keep today's allowance anchored to the balance at the start of the day.
     let todayBudget = 0;
@@ -1009,7 +1019,7 @@ function renderHistory() {
         const min = timestamp.substring(10, 12);
         const timeStr = `${hr}:${min}`;
         
-        const mealType = getEntryMealType(state.eaten[index]) || 'unassigned';
+        const mealType = isCreditEntry(state.eaten[index]) ? 'credit' : (getEntryMealType(state.eaten[index]) || 'unassigned');
         if (!groups[datePart]) groups[datePart] = { title: headerStr, meals: {} };
         if (!groups[datePart].meals[mealType]) groups[datePart].meals[mealType] = [];
 
@@ -1018,9 +1028,10 @@ function renderHistory() {
             foodId,
             timestamp,
             foodItem: getEatenRecordName(foodId, customName),
-            foodCategory: food ? food.category : (isCustomFoodId(foodId) ? 'Custom item' : 'N/A'),
+            foodCategory: isCreditEntry(state.eaten[index]) ? 'Balance credit' : (food ? food.category : (isCustomFoodId(foodId) ? 'Custom item' : 'N/A')),
             price: getEatenRecordPrice(foodId, savedPrice),
             time: isFoodCourtLedgerEntry(foodId) ? '—' : timeStr,
+            credit: isCreditEntry(state.eaten[index]),
             meal: getEntryMealLabel(state.eaten[index])
         });
     });
@@ -1031,14 +1042,14 @@ function renderHistory() {
     let html = '';
     sortedDates.forEach(dateKey => {
         const group = groups[dateKey];
-        const mealOrder = ['breakfast', 'lunch', 'snack', 'dinner', 'unassigned'];
+        const mealOrder = ['credit', 'breakfast', 'lunch', 'snack', 'dinner', 'unassigned'];
         const sortedMeals = Object.keys(group.meals).sort((a, b) => mealOrder.indexOf(a) - mealOrder.indexOf(b));
 
         const mealsHtml = sortedMeals.map(mealType => {
             const records = group.meals[mealType].sort((a, b) => a.timestamp.localeCompare(b.timestamp) || a.index - b.index);
             const total = records.reduce((sum, record) => sum + record.price, 0);
             const countLabel = `${records.length} ${records.length === 1 ? 'item' : 'items'}`;
-            const mealLabel = mealType === 'unassigned' ? 'Meal unassigned' : `${mealType.charAt(0).toUpperCase()}${mealType.slice(1)}`;
+            const mealLabel = mealType === 'credit' ? 'Money added' : (mealType === 'unassigned' ? 'Meal unassigned' : `${mealType.charAt(0).toUpperCase()}${mealType.slice(1)}`);
             const itemsHtml = records.map(rec => `
                 <div class="history-item">
                     <div class="history-item-left">
@@ -1049,7 +1060,7 @@ function renderHistory() {
                         </div>
                     </div>
                     <div class="history-item-right">
-                        <span class="history-price">₹${rec.price.toFixed(2)}</span>
+                            <span class="history-price">${rec.credit ? '+' : ''}₹${rec.price.toFixed(2)}</span>
                         <button class="btn btn-outline btn-xs edit-history-btn" data-index="${rec.index}" title="Edit eating record">✏️ Edit</button>
                         <button class="delete-history-btn" data-index="${rec.index}" title="Remove entry" aria-label="Remove ${escapeHTML(rec.foodItem)}">×</button>
                     </div>
@@ -1432,6 +1443,52 @@ function closeCustomEntryModal() {
     document.getElementById('custom-entry-modal').classList.remove('open');
 }
 
+function openCreditModal() {
+    const now = new Date();
+    document.getElementById('credit-form').reset();
+    document.getElementById('credit-date').value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    document.getElementById('credit-time').value = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+    document.getElementById('credit-modal').classList.add('open');
+    document.getElementById('credit-amount').focus();
+}
+
+function closeCreditModal() {
+    document.getElementById('credit-modal').classList.remove('open');
+}
+
+function saveCredit(e) {
+    e.preventDefault();
+    const amount = Number(document.getElementById('credit-amount').value);
+    const note = document.getElementById('credit-note').value.trim();
+    const dateVal = document.getElementById('credit-date').value;
+    const timeVal = document.getElementById('credit-time').value;
+    if (!Number.isFinite(amount) || amount <= 0) {
+        showToast('Enter an amount greater than ₹0.', 'error');
+        return;
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(dateVal) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(timeVal)) {
+        showToast('Enter a valid date and time.', 'error');
+        return;
+    }
+    const [year, month, day] = dateVal.split('-').map(Number);
+    const checkDate = new Date(year, month - 1, day);
+    if (checkDate.getFullYear() !== year || checkDate.getMonth() !== month - 1 || checkDate.getDate() !== day) {
+        showToast('Enter a valid calendar date.', 'error');
+        return;
+    }
+    if (dateVal < state.settings.startDate || dateVal > state.settings.endDate) {
+        showToast('Money added must be within the active budget period.', 'error');
+        return;
+    }
+    const [hour, minute] = timeVal.split(':');
+    const timestamp = `${String(year).padStart(4, '0')}${String(month).padStart(2, '0')}${String(day).padStart(2, '0')}${hour}${minute}`;
+    state.eaten.push([`custom:credit:${Date.now()}`, timestamp, amount, note || 'Money added']);
+    saveUserData();
+    triggerFullUIRender();
+    closeCreditModal();
+    showToast(`Added ₹${amount.toFixed(2)} to your balance.`, 'success');
+}
+
 function saveCustomEntry(e) {
     e.preventDefault();
     const name = document.getElementById('custom-entry-name').value.trim();
@@ -1607,6 +1664,7 @@ function ledgerDuplicateKey(date, amountCents, closingCents) {
 function inferLedgerMeals(entries) {
     const averages = Object.fromEntries(MEAL_TYPES.map(meal => [meal, { totalCents: 0, count: 0 }]));
     state.eaten.forEach(record => {
+        if (isCreditEntry(record)) return;
         const meal = getEntryMealType(record);
         if (!meal) return;
         const cents = Math.round(getEatenRecordPrice(record[0], record[2]) * 100);
@@ -1929,6 +1987,7 @@ const chartInstances = {
     mealSpending: null,
     categorySpending: null
 };
+let chartRangeDays = 7;
 
 // The dashboard and analytics both use the starting balance restored from
 // the saved foodCourtData settings during app bootstrap.
@@ -1965,7 +2024,9 @@ function renderAnalytics() {
     const expectedBalanceToDate = Math.max(0, startingBalance - expectedSpendToDate);
 
     let totalSpent = 0;
+    let totalCredits = 0;
     const dailySpendMap = {};
+    const dailyCreditMap = {};
     const mealSpendMap = { breakfast: 0, lunch: 0, snack: 0, dinner: 0 };
     const categorySpendMap = {};
     const foodCountMap = {};
@@ -1974,6 +2035,13 @@ function renderAnalytics() {
 
     state.eaten.forEach(record => {
         const [foodId, timestamp, savedPrice, customName] = record;
+        if (isCreditEntry(record)) {
+            const credit = Math.max(0, Number(savedPrice) || 0);
+            totalCredits += credit;
+            const dateStr = timestamp.substring(0, 8);
+            dailyCreditMap[dateStr] = (dailyCreditMap[dateStr] || 0) + credit;
+            return;
+        }
         const food = state.foodMap[foodId];
         const price = getEatenRecordPrice(foodId, savedPrice);
         totalSpent += price;
@@ -1996,7 +2064,7 @@ function renderAnalytics() {
         foodNameMap[foodId] = getEatenRecordName(foodId, customName);
     });
 
-    const actualBalance = startingBalance - totalSpent;
+    const actualBalance = startingBalance - totalSpent + totalCredits;
 
     // Populate KPIs
     const anTotalSpentEl = document.getElementById('an-total-spent');
@@ -2093,6 +2161,11 @@ function renderAnalytics() {
     const isDark = state.theme === 'dark';
     const textColor = isDark ? '#94a3b8' : '#4b5563';
     const gridColor = isDark ? 'rgba(255, 255, 255, 0.07)' : 'rgba(0, 0, 0, 0.08)';
+    document.querySelectorAll('[data-chart-range-control] [data-range]').forEach(button => {
+        const selected = String(chartRangeDays) === button.dataset.range;
+        button.classList.toggle('active', selected);
+        button.setAttribute('aria-pressed', String(selected));
+    });
 
     if (chartInstances.balanceTrend) { chartInstances.balanceTrend.destroy(); chartInstances.balanceTrend = null; }
     if (chartInstances.dailySpending) { chartInstances.dailySpending.destroy(); chartInstances.dailySpending = null; }
@@ -2106,21 +2179,18 @@ function renderAnalytics() {
 
     const sortedEaten = [...state.eaten].sort((a, b) => a[1].localeCompare(b[1]));
 
-    let cumulativeSpend = 0;
-    const cumulativeSpendByDate = {};
-    sortedEaten.forEach(([fId, ts, savedPrice]) => {
-        const p = getEatenRecordPrice(fId, savedPrice);
-        const dStr = ts.substring(0, 8);
-        cumulativeSpend += p;
-        cumulativeSpendByDate[dStr] = cumulativeSpend;
-    });
-
-    let runningCumSpend = 0;
-    const curDate = new Date(start.getTime());
-    const oneWeekAhead = new Date(today.getFullYear(), today.getMonth(), today.getDate() + 7);
-    const chartEnd = new Date(Math.min(end.getTime(), oneWeekAhead.getTime()));
-    // A future budget period can start after this week's lookahead. Keep its first day visible.
-    if (chartEnd < start) chartEnd.setTime(start.getTime());
+    const chartEnd = today < start ? new Date(start.getTime()) : new Date(Math.min(end.getTime(), today.getTime()));
+    const selectedStart = chartRangeDays === 'all'
+        ? new Date(start.getTime())
+        : new Date(Math.max(start.getTime(), chartEnd.getTime() - (Number(chartRangeDays) - 1) * 86400000));
+    const curDate = new Date(selectedStart.getTime());
+    let recordCursor = 0;
+    let runningActualBalance = startingBalance;
+    const selectedStartKey = `${selectedStart.getFullYear()}${String(selectedStart.getMonth() + 1).padStart(2, '0')}${String(selectedStart.getDate()).padStart(2, '0')}`;
+    while (recordCursor < sortedEaten.length && sortedEaten[recordCursor][1].substring(0, 8) < selectedStartKey) {
+        const record = sortedEaten[recordCursor++];
+        runningActualBalance += isCreditEntry(record) ? Math.max(0, Number(record[2]) || 0) : -getEatenRecordPrice(record[0], record[2]);
+    }
     let dayIndex = 0;
 
     while (curDate <= chartEnd) {
@@ -2131,17 +2201,15 @@ function renderAnalytics() {
         const label = `${mStr}/${dStr}`;
         dateLabels.push(label);
 
-        const expBal = Math.max(0, startingBalance - (dayIndex * dailyExpectedBurn));
+        const daysFromPeriodStart = Math.round((curDate.getTime() - start.getTime()) / 86400000);
+        const expBal = Math.max(0, startingBalance - (daysFromPeriodStart * dailyExpectedBurn));
         expectedData.push(Math.round(expBal));
 
-        if (curDate <= today || today > end) {
-            if (cumulativeSpendByDate[key] !== undefined) {
-                runningCumSpend = cumulativeSpendByDate[key];
-            }
-            actualData.push(Math.round(startingBalance - runningCumSpend));
-        } else {
-            actualData.push(null);
+        while (recordCursor < sortedEaten.length && sortedEaten[recordCursor][1].substring(0, 8) <= key) {
+            const record = sortedEaten[recordCursor++];
+            runningActualBalance += isCreditEntry(record) ? Math.max(0, Number(record[2]) || 0) : -getEatenRecordPrice(record[0], record[2]);
         }
+        actualData.push(Math.round(runningActualBalance));
 
         curDate.setDate(curDate.getDate() + 1);
         dayIndex++;
@@ -2223,15 +2291,30 @@ function renderAnalytics() {
             chartDate.setDate(chartDate.getDate() + 1);
         }
     }
-    const dailyLabels = dailyKeys.map(key => `${key.substring(4, 6)}/${key.substring(6, 8)}`);
-    const dailyValues = dailyKeys.map(key => dailySpendMap[key] || 0);
+    const allDailyValues = dailyKeys.map(key => dailySpendMap[key] || 0);
     let openingBalance = startingBalance;
-    const dailyTargetValues = dailyKeys.map((key, index) => {
+    const allDailyTargetValues = dailyKeys.map((key, index) => {
         const daysRemaining = totalDays - index;
         const target = daysRemaining > 0 ? Math.max(0, openingBalance / daysRemaining) : 0;
-        openingBalance -= dailySpendMap[key] || 0;
+        openingBalance += (dailyCreditMap[key] || 0) - (dailySpendMap[key] || 0);
         return target;
     });
+    const allTargetChangeColors = allDailyTargetValues.map((target, index) => {
+        if (index === 0) return '#f59e0b';
+        const change = target - allDailyTargetValues[index - 1];
+        if (Math.abs(change) <= 0.01) return '#f59e0b';
+        return change > 0 ? '#22c55e' : '#ef4444';
+    });
+    const rangeStartKey = `${selectedStart.getFullYear()}${String(selectedStart.getMonth() + 1).padStart(2, '0')}${String(selectedStart.getDate()).padStart(2, '0')}`;
+    const rangeOffset = dailyKeys.findIndex(key => key >= rangeStartKey);
+    const visibleDailyKeys = rangeOffset < 0 ? [] : dailyKeys.slice(rangeOffset);
+    const dailyLabels = visibleDailyKeys.map(key => `${key.substring(4, 6)}/${key.substring(6, 8)}`);
+    const dailyValues = visibleDailyKeys.map(key => dailySpendMap[key] || 0);
+    const dailyTargetValues = visibleDailyKeys.map(key => allDailyTargetValues[dailyKeys.indexOf(key)]);
+    const dailyTargetPointColors = visibleDailyKeys.map(key => allTargetChangeColors[dailyKeys.indexOf(key)]);
+    const visibleSpendingValues = [...dailyValues, ...dailyTargetValues].filter(Number.isFinite);
+    const spendingMax = Math.max(0, ...visibleSpendingValues);
+    const spendingAxisMax = spendingMax > 0 ? spendingMax * 1.1 : 1;
 
     const ctxDaily = document.getElementById('chart-daily-spending');
     if (ctxDaily) {
@@ -2253,8 +2336,10 @@ function renderAnalytics() {
                         borderColor: '#f59e0b',
                         borderDash: [6, 4],
                         borderWidth: 2,
-                        pointRadius: 0,
-                        pointHoverRadius: 4,
+                        pointRadius: 4,
+                        pointHoverRadius: 6,
+                        pointBackgroundColor: dailyTargetPointColors,
+                        pointBorderColor: dailyTargetPointColors,
                         tension: 0,
                         fill: false
                     }] : [])
@@ -2268,7 +2353,7 @@ function renderAnalytics() {
                 },
                 scales: {
                     x: { ticks: { color: textColor }, grid: { color: gridColor } },
-                    y: { ticks: { color: textColor, callback: v => `₹${v}` }, grid: { color: gridColor } }
+                    y: { min: 0, max: spendingAxisMax, ticks: { color: textColor, callback: v => `₹${v}` }, grid: { color: gridColor } }
                 }
             }
         });
@@ -2568,6 +2653,18 @@ function initEventBindings() {
             return;
         }
 
+        if (e.target.id === 'credit-modal') {
+            closeCreditModal();
+            return;
+        }
+
+        const rangeButton = e.target.closest('[data-chart-range-control] [data-range]');
+        if (rangeButton) {
+            chartRangeDays = rangeButton.dataset.range === 'all' ? 'all' : Number(rangeButton.dataset.range);
+            renderAnalytics();
+            return;
+        }
+
         if (e.target.id === 'bulk-ledger-modal') {
             closeBulkLedgerModal();
             return;
@@ -2607,6 +2704,9 @@ function initEventBindings() {
     document.getElementById('add-custom-entry-btn').addEventListener('click', openCustomEntryModal);
     document.getElementById('custom-entry-cancel-btn').addEventListener('click', closeCustomEntryModal);
     document.getElementById('custom-entry-form').addEventListener('submit', saveCustomEntry);
+    document.getElementById('add-credit-btn').addEventListener('click', openCreditModal);
+    document.getElementById('credit-cancel-btn').addEventListener('click', closeCreditModal);
+    document.getElementById('credit-form').addEventListener('submit', saveCredit);
     document.getElementById('bulk-ledger-open-btn').addEventListener('click', openBulkLedgerModal);
     document.getElementById('bulk-ledger-cancel-btn').addEventListener('click', closeBulkLedgerModal);
     document.getElementById('bulk-ledger-preview-btn').addEventListener('click', previewBulkLedgerImport);
