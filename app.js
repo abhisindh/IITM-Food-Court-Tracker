@@ -2314,7 +2314,7 @@ function renderAnalytics() {
     const dailyTargetPointColors = visibleDailyKeys.map(key => allTargetChangeColors[dailyKeys.indexOf(key)]);
     const visibleSpendingValues = [...dailyValues, ...dailyTargetValues].filter(Number.isFinite);
     const spendingMax = Math.max(0, ...visibleSpendingValues);
-    const spendingAxisMax = spendingMax > 0 ? spendingMax * 1.1 : 1;
+    const spendingAxisMax = spendingMax > 0 ? Math.ceil(spendingMax * 1.1) : 1;
 
     const ctxDaily = document.getElementById('chart-daily-spending');
     if (ctxDaily) {
